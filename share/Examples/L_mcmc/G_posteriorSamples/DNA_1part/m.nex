@@ -1,0 +1,15 @@
+#nexus
+
+begin mrbayes;
+  log filename=mbout.log append start;
+  execute d.nex;
+
+  lset nst=6 rates=invgamma;
+  mcmc ngen=2000 samplefreq=100 printfreq=1000 diagnfreq=1000 file=mbout;
+
+  sump burnin=11 file=mbout printtofile=yes outputname=mbout.prams;
+  sumt burnin=11 file=mbout;
+
+  quit;
+
+end;

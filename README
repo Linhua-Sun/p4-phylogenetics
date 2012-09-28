@@ -1,0 +1,47 @@
+p4
+==
+
+P4 does Bayesian and maximum likelihood phylogenetic analyses on
+molecular sequences.  It's specialty is that you can use heterogeneous
+models, where the model parameters can differ in different parts of
+the tree, or over different parts of the data.
+
+The user interface for p4 is the Python language.  That means that p4
+comes with all the abilities of a high-level object-oriented
+programming language.  This is a Good Thing.
+
+I have successfully installed it on linux and on Mac OS X.
+
+Thanks to Dave Swofford and Ziheng Yang for some code.
+
+Many of the ideas were influenced or stolen from the excellent
+MrBayes, and thanks are given to the authors, John Huelsenbeck and
+Fredrik Ronquist.
+
+Getting Started
+---------------
+
+To install it, see the file INSTALL.rst
+
+Once you have it installed, call it from your command line, eg
+
+yourShellPrompt% p4
+
+and read the splash screen.  It will invite you to read the
+func.info() and it will tell you where some examples are installed.
+Try the examples, and make variations on them.  Python help() within
+p4, eg
+
+p4> help(Mcmc)
+
+will give a lot of documentation.
+
+Citation
+--------
+Foster, P.G. 2004.  Modeling compositional heterogeneity.  Syst. Biol. 53: 485-495.
+
+
+Using build.xml
+---------------
+
+This needs pyAntTasks-X.X.jar installed in /usr/share/ant/lib, if it is not already.  I had to use a slightly older version (1.2) on my mac using native java, as the mac java was so old.
