@@ -3,7 +3,7 @@ Installation
 ============
 
 For the most up-to-date features, and for the freshest, newest bugs, I
-recommend using the subversion repository.  See below.
+recommend using the mercurial repository.  See below.
 
 You can do a full install, but that requires a few pre-requisites.  If
 you do not have those pre-requisites you can install p4 as a pure
@@ -49,18 +49,14 @@ And that was mostly ok.  The only problem was that the 4 sphinx
 executables (sphinx-build et al) had `-27` on the end of the name.
 See the Sphinx Makefile for making the Sphinx docs, where it says how
 to use executables with non-standard names.  Or just change the names.
+
+Another Update:  I've had better luck building my own Python 2.7 from source.
  
 **Preparations for the full install on Linux**
 
- 
-On my Ubuntu box, I installed gsl-devel and python26-numpy, if
-I recall correctly.  Correct me if I'm wrong.  
-
 If the installation process complains about lack of Python.h, then you
 need what on Ubuntu would be called 'python-dev' or some such, which
-is not included in the default Ubuntu 10.04.  On my Ubuntu box, I
-think by installing python26-numpy it may have installed python-dev as
-a dependency.
+is not included in the default Ubuntu 10.04. 
 
 Someone kindly wrote to say that that they had recently installed p4
 on a 64-bit Ubuntu 11.04, and had to::
@@ -69,71 +65,74 @@ on a 64-bit Ubuntu 11.04, and had to::
     sudo apt-get install libgsl0-dev
     sudo apt-get install python-dev
 
-I confirmed that short list on 32-bit Ubuntu 11.10.  If you don't
-already have subversion, you will need it as well, and sphinx for the
-html documentation::
+I confirmed that short list on my Ubuntu 11.10, and now 12.04 (except
+that numpy was already there).  If you don't already have mercurial,
+you will need it as well, and sphinx for the html documentation::
 
-    sudo apt-get install subversion
+    sudo apt-get install mercurial
     sudo apt-get install python-sphinx
 
 And if you want to use the GUI tree-drawing::
 
-    sudo apt=get install python-tk
+    sudo apt-get install python-tk
 
 
-Get the subversion version
-==========================
+Get the mercurial version
+=========================
 
-The best way to get p4 is by using Subversion.  
+The best way to get p4 is by using mercurial.  
 
-1. Install Subversion on your computer.  On ubuntu its::
+1. If you don't already have it, install mercurial on your computer.
+   On ubuntu it is::
 
-    sudo apt-get install subversion
+    sudo apt-get install mercurial
+
+   The command for mercurial is ``hg``
 
 2. Choose a good place to put the source code, and go there.  A new
    directory will be made there in the next step.
  
-3. Do the check-out command.  The repository is at
-   http://code.google.com/p/p4-phylogenetics/.  There, the google
+3. Clone it.  The repository is at
+   http://code.google.com/p/p4-phylogenetics/  There, the google
    folks say::
 
-    # Non-members may check out a read-only working copy anonymously over HTTP.
-    svn checkout http://p4-phylogenetics.googlecode.com/svn/trunk/ p4-phylogenetics-read-only 
+    Get a local copy of the p4-phylogenetics repository with this command:
+    hg clone https://code.google.com/p/p4-phylogenetics/
 
-  The second arg to the checkout command, in this case
-  ``p4-phylogenetics-read-only``, becomes the name of the directory in
-  which the stuff goes.  You may prefer something simpler, like
-  ``P4svn``, in which case::  
 
-    svn checkout http://p4-phylogenetics.googlecode.com/svn/trunk/ P4svn
+  Doing that will make a directory called ``p4-phylogenetics`` filled
+  with the files of the repository.  If you want the directory to be
+  called something else, follow the ``hg clone ...`` command above
+  with a directory name, and then your clone will be put in a
+  directory with that name instead of ``p4-phylogenetics``. 
 
-  Whatever you call it, if the checkout command works that directory
+  Whatever you call it, if the ``hg clone`` command works that directory
   will be created and filled with the latest p4 source code.
 
 
 Installing it in-place
 ======================
 
-My fave way of using the subversion version of p4 is to use it
-in-place rather than installing it with setup.py.  To use it in-place,
+My fave way of using the mercurial version of p4 is to use it
+in-place rather than installing it with ``setup.py``.  To use it in-place,
 you need to 
 
-1. Add the p4 svn directory to your ``PYTHONPATH``
+1. Add the p4 hg directory, eg ``/usr/local/src/P4Hg`` to your ``PYTHONPATH``
 
-2. Add the p4 svn/bin directory to your ``PATH``
+2. Add the p4 hg bin directory, eg ``/usr/local/src/P4Hg/bin`` to your ``PATH``
 
 3. Build the ``pf`` module, installing it in-place
 
 For example if you install it in your home directory, to add the p4
-svn directory to your ``PYTHONPATH``, you might add something like the
+hg directory to your ``PYTHONPATH``, you might add something like the
 following line to your ``~/.profile`` or ``~/.bash_profile``::
 
-  export PYTHONPATH=$HOME/src/P4svn
+  export PYTHONPATH=$HOME/src/P4Hg
 
-(depending on where your P4svn directory is, and what it is called), or
+(depending on where your P4 hg directory is, and what it is called), or
 you can add ::
 
-  export PYTHONPATH=$PYTHONPATH:$HOME/src/P4svn
+  export PYTHONPATH=$PYTHONPATH:$HOME/src/P4Hg
 
 if you already have a ``PYTHONPATH`` defined.
 
@@ -141,13 +140,16 @@ The second thing you will want to do is to add the location of the p4
 script to your ``PATH``.  Similar to adjusting the ``PYTHONPATH``
 above, you can add a line like this to your  ``~/.profile`` or ``~/.bash_profile``::
 
-  export PATH=$PATH:$HOME/src/P4svn/bin
+  export PATH=$PATH:$HOME/src/P4Hg/bin
 
-depending on where your P4svn directory is, and what it is called.
+depending on where your P4 hg directory is, and what it is called.
 
 To build the ``pf`` module, say::
 
    python setup.py build_ext -i
+
+It might actually work.  If it doesn't, note the error messages that
+flew by.  The earliest error message is usually a clue.
 
 Installing the html docs
 ========================
@@ -162,20 +164,24 @@ Then go to ``share/sphinxdoc`` in the p4 source, and do::
 
 And then you can open ``_build/html/index.html`` with your browser.
 
-Updating from svn
+Or, the docs are online, at `<http://p4.nhm.ac.uk>`_
+
+
+Updating from hg
 =================
 
 The best part of installing it in-place is that it makes it easy to
-update.  Generally all you need to do is to go to the p4 svn directory
+update.  Generally all you need to do is to go to the p4 hg directory
 and say::
 
-  svn update
+  hg pull
+  hg update
 
-That one command is usually
+That pair of commands is usually
 sufficient.  Occasionally there may have been changes to the
-C-language code in the ``pf`` module.  If that is the case (you would
-be able to see those files as they are updated), and you use the
-``pf`` module (it needs Numpy and and GSL -- p4 can run without those)
+C-language code in the ``pf`` module.  If that is the case (would you
+be able to see those files as they are updated?), and you use the
+``pf`` module
 then you would need to do::
 
  python setup.py build_ext -i
@@ -183,9 +189,6 @@ then you would need to do::
 You would also need to do that when you install it in-place for the
 first time, or if you make any changes to the C-language code
 yourself.  If you are not sure it is needed, its ok to do it anyway.
-
-
-
 
 
 Installing scqdist, the sub-cubic quartet distance module
@@ -211,7 +214,7 @@ your shell (not in interactive python)::
 
 (Once it gets installed, if everything went perfectly and it still
 does not work, try it in a new shell, or maybe even restart your
-terminal program.)
+terminal program to refresh your PATH and PYTHONPATH.)
 
 .. _completion_on_the_mac:
 
@@ -221,7 +224,7 @@ Completion in MacOS 10.5 and 10.6
 P4 has a simple but useful completion module (I like it enough to use
 it for all my python work) but file completion in the python that
 comes with Mac OS 10.5 and 10.6 is broken.  To fix it, you can either
-install a better python, or, to partially fix it, you can, in a file
+install a better Python (my preferred option), or, to partially fix it, you can, in a file
 '~/.p4/interactive' (that is a text file called 'interactive' that is
 put in a directory called '.p4' in your home directory) put a line
 that says 'var.readlineUsesEditline = True' (no quotes).  More info
@@ -236,7 +239,8 @@ sigs (ie the stuff inside the parentheses, ie the method args).
 However, the doc strings had the method sigs, so it was not too bad.
 Perhaps better to use MacPorts to install a newer Python, with a
 proper readline.  Saying "sudo port install py26-numpy" (assuming you
-have MacPorts installed) should do the trick.
+have MacPorts installed) should do the trick.  Or just install a
+new Python from source.
 
 .. _completion_oddness:
 
@@ -299,8 +303,7 @@ Installing p4 using setup.py
 
 This is the usual way that Python packages are installed, and is an
 alternative to installing p4 in-place as described above.  It can be
-done from the svn download or an unpacked tarball (although the latter
-is not recommended).
+done from the hg download.
 
 If you are upgrading, you can un-install the previous version with the
 p4 func.uninstall() function.  Depending on how it was installed, you

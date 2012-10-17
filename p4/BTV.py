@@ -1,9 +1,4 @@
 import time,os,sys,random,string,math
-#from Queue import Queue
-#import thread
-#import atexit
-#from p4.Var import var
-#from p4 import func
 from p4.Tree import Tree
 from Glitch import Glitch
 try:

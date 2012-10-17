@@ -1,0 +1,5 @@
+syntax: glob
+*.pyc
+p4/pf.so
+build/*
+share/sphinxdoc/_build/*
