@@ -213,7 +213,7 @@ class GeneticCode:
         This method will translate a codon, depending of course on the
         transl_table (which is specific to *self*), correctly handling
         ambiguities appropriate to the transl_table.  It does not give
-        info about whether the codon is a potentially a start codon.
+        info about whether the codon is potentially a start codon.
 
         This method is used by the methods
         :meth:`Alignment.Alignment.translate` and

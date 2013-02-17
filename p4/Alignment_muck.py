@@ -979,7 +979,11 @@ def pDistances(self, ignoreGaps=True, divideByNPositionsCompared=True):
                     if self.sequences[i].sequence[k] != self.sequences[j].sequence[k]:
                         nDiffs += 1
             if divideByNPositionsCompared:
-                fDiffs = float(nDiffs)/float(nPositions)
+                if not nPositions:
+                    print "No shared positions between (zero-based) seqs %i and %i.  Setting to 1.0" % (i, j)
+                    fDiffs = 1.0
+                else:
+                    fDiffs = float(nDiffs)/float(nPositions)
             else:
                 fDiffs = float(nDiffs)/float(self.length)
             # Uncomment the following to return the number, for just the first 2 sequences.
