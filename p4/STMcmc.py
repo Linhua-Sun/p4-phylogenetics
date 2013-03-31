@@ -55,6 +55,12 @@ if 0: # test bitReduce
                           
     rsk, popcount = bitReduce(sk, txBits, lLen, sLen, allOnes)
     print "    rsk: %3i  %s" % (rsk, func.getSplitStringFromKey(rsk, sLen))
+    print "   popcount %i" % popcount
+    #     sk:   6  .**..
+    #     taxBits:  30  .****
+    #     rsk:  12  ..**
+    #     popcount 2
+
 
 def maskedSymmetricDifference(skk, skkSet, taxBits, longLen, shortLen, allOnes):
     if 0:
