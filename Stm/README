@@ -13,3 +13,14 @@ To build the thing, do
 
 and look for error messages.  If you get error messages, it probably can't find something that it needs, which might be corrected by adjusting the setup.py file.  If it works, you get p4stm.so, which you can move into your python path, eg in the p4 modules directory.
 
+Notes added 2013-04-01.  I was having trouble building it, but got it to build again on ubuntu 12.04 LTS server, by doing this ---
+
+Install boost (with boost_python) via apt-get
+
+Then install PyUBlas
+ ./configure.py --boost-python-libname=boost_python-py27
+ make
+ sudo make install
+It installed in 
+/usr/local/lib/python2.7/dist-packages/PyUblas-2011.1-py2.7-linux-x86_64.egg
+

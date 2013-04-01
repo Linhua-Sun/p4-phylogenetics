@@ -319,8 +319,7 @@ public:
   std::vector<boost::dynamic_bitset<>*> singleBits;
 
   Stm(int nTax): nTax(nTax), 
-		 bigT(NULL), 
-		 //inTrees(NULL) 
+		 bigT(NULL) 
   {
   } 
   
