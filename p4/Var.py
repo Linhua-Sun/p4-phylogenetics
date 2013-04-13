@@ -178,6 +178,10 @@ class Var(object):
         a compile-time variable.  Its usually 10, tho.  You can change
         it with this."""
 
+        self.writeFastaUppercase = False
+        """Whether fasta sequences are written in uppercase."""
+
+
         # Check sequence files that are read in and become Alignment objects.
         self.doCheckForAllGapColumns = True  
         self.doCheckForBlankSequences = True 

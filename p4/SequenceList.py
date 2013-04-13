@@ -126,11 +126,17 @@ class Sequence(object):
         left = len(self.sequence)
         pos = 0
         while left >= width:
-            flob.write('%s\n' % self.sequence[pos: pos + width])
+            if var.writeFastaUppercase:
+                flob.write('%s\n' % self.sequence[pos: pos + width].upper())
+            else:
+                flob.write('%s\n' % self.sequence[pos: pos + width])
             pos = pos + width
             left = left - width
         if left > 0:
-            flob.write('%s\n' % self.sequence[pos:])
+            if var.writeFastaUppercase:
+                flob.write('%s\n' % self.sequence[pos:].upper())
+            else:
+                flob.write('%s\n' % self.sequence[pos:])
         flob.write('\n')
 
     def write(self):
@@ -665,11 +671,17 @@ class SequenceList(object):
                 left = len(s.sequence)
                 pos = 0
                 while left >= width:
-                    f.write('%s\n' % s.sequence[pos: pos + width])
+                    if var.writeFastaUppercase:
+                        f.write('%s\n' % s.sequence[pos: pos + width].upper())
+                    else:
+                        f.write('%s\n' % s.sequence[pos: pos + width])
                     pos = pos + width
                     left = left - width
                 if left > 0:
-                    f.write('%s\n' % s.sequence[pos:])
+                    if var.writeFastaUppercase:
+                        f.write('%s\n' % s.sequence[pos:].upper())
+                    else:
+                        f.write('%s\n' % s.sequence[pos:])
                 f.write('\n')
         else:
             try:
@@ -690,11 +702,17 @@ class SequenceList(object):
             left = len(s.sequence)
             pos = 0
             while left >= width:
-                f.write('%s\n' % s.sequence[pos: pos + width])
+                if var.writeFastaUppercase:
+                    f.write('%s\n' % s.sequence[pos: pos + width].upper())
+                else:
+                    f.write('%s\n' % s.sequence[pos: pos + width])
                 pos = pos + width
                 left = left - width
             if left > 0:
-                f.write('%s\n' % s.sequence[pos:])
+                if var.writeFastaUppercase:
+                    f.write('%s\n' % s.sequence[pos:].upper())
+                else:
+                    f.write('%s\n' % s.sequence[pos:])
             f.write('\n')
 
         #f.read()
