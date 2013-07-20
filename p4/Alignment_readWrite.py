@@ -1081,8 +1081,14 @@ def writePhylip(self, fName=None, interleave=True, whitespaceSeparatesNames=True
             namesHaveSpaces = True
             
     if whitespaceSeparatesNames and namesHaveSpaces:
+        crimes = []
+        for s in self.sequences:
+            if s.name.count(' '):
+                crimes.append("has space in the name: %s" % s.name)
         gm.append("whitespaceSeparatesNames is set, but some tax names")
         gm.append("have spaces.  That won't work. -- Fix it.")
+        for crime in crimes:
+            gm.append(crime)
         raise Glitch, gm
 
     doStrictOkAnyway = False

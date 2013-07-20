@@ -8,7 +8,7 @@ data.
 
 The package comes with-
    - the package itself, which goes where the third-party modules go,
-     eg /usr/local/lib/python2.5/site-packages/p4/
+     eg /usr/local/lib/python2.7/site-packages/p4/
    - the p4 script, which goes somewhere in your path.
    - documentation and examples, which go in an appropriate share
      directory, for example in /usr/local/share/doc
@@ -26,9 +26,7 @@ from the command line.  To see if it is installed and works, try
 
     p4 --help
 
-The documentation, this week, is in the form of an 'info' file.
-Hopefully you should be able to read it from within p4 via
-'func.info()'.
+Documentation is at <http://p4.nhm.ac.uk>
 
 """
 

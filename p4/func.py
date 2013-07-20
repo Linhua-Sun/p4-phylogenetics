@@ -1067,6 +1067,8 @@ def randomTree(taxNames=None, nTax=None, name='random', seed=None, biRoot=0, ran
     nNodesAddedForConstraints = 0
     if constraints:
         for aConstraint in constraints.constraints:
+            #print "doing aConstraint %s  %i" % (getSplitStringFromKey(aConstraint, nTax), aConstraint)
+            #t.dump(tree=0, node=1)
             t.setPreAndPostOrder()
             eTaxNames = []
             for i in range(nTax):

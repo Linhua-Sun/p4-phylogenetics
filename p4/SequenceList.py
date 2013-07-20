@@ -156,6 +156,95 @@ class Sequence(object):
         if not isFlob:
             f.close()
         
+    def translate(self, transl_table=1, checkStarts=False, nnn_is_gap=False):
+        """Returns a protein Sequence from self, a DNA sequence.
+
+        Self is translated using
+        :meth:`GeneticCode.GeneticCode.translate`, so it handles
+        ambiguities.  At the moment, we can only do translations where the
+        frame of the codon is 123, ie the first sequence position is the
+        first position of the codon.  The default transl_table is the
+        standard (or so-called universal) genetic code, but you can change
+        it.
+
+        Other available translation tables, this week::
+
+            if transl_table == 1: # standard
+            elif transl_table == 2: # vertebrate mito
+            elif transl_table == 4: # Mold, Protozoan,
+                                    # and Coelenterate Mitochondrial Code
+                                    # and the Mycoplasma/Spiroplasma Code
+            elif transl_table == 5: # invertebrate mito
+            elif transl_table == 9: # echinoderm mito
+
+            and now 6, 10, 11, 12, 13, 14, 21.
+
+        (These are found in :class:`GeneticCode.GeneticCode`)
+
+        See also :meth:`Alignment.Alignment.checkTranslation` and
+        :meth:`Alignment.Alignment.checkTranslation`.
+
+        If the arg *checkStarts* is turned on (by default it is not turned
+        on) then this method checks whether the first codon is a start
+        codon.
+
+        Arg *nnn_is_gap* is for odd sequences where there are long
+        stretches of 'nnn' codons, which probably should be gaps.
+        Probably best to correct those elsewise.
+
+        """
+
+        gm = ['Sequence.translate()']
+        if self.dataType != 'dna':
+            gm.append("Self should be a DNA Sequence")
+            raise Glitch, gm
+
+        if self.nChar % 3 != 0:
+            gm.append("The length of self should be a multiple of 3")
+            raise Glitch, gm
+        nTriplets = self.nChar / 3
+
+        from GeneticCode import GeneticCode
+        gc = GeneticCode(transl_table)
+
+        prSeq = Sequence()
+        prSeq.dataType = 'protein'
+        prSeq.name = self.name
+        prSeq.sequence = ['-'] * nTriplets
+        
+        dnaSeq = self.sequence
+        protSeq = prSeq.sequence
+        for j in range(nTriplets):
+            theCodon = dnaSeq[(j * 3):(j * 3) + 3]
+            #print theCodon
+            if theCodon == '---':
+                protSeq[j] = '-'
+            elif theCodon.count('-'):
+                print "    seq %s, position %4i, dnaSeq %4i, codon '%s' is incomplete" % (self.name, j, (j*3), theCodon)
+            elif theCodon == 'nnn':
+                if nnn_is_gap:
+                    print "    seq %s, position %4i, dnaSeq %4i, codon '%s' translating to a gap ('-')" % (
+                        self.name, j, (j*3), theCodon)
+                    protSeq[j] = '-'
+                else:
+                    protSeq[j] = 'x'
+            else:
+                protSeq[j] = gc.translate(theCodon)
+                if checkStarts and j == 0:
+                    if theCodon in gc.startList:
+                        print "    Seq %s. The first codon, '%s', is a start codon" % (
+                            self.name, theCodon)
+                    else:
+                        print "    Seq %s. The first codon, '%s', is not a start codon" % (
+                            self.name, theCodon)
+
+        # Get rid of stop translation '*'
+        if prSeq.sequence[-1] == '*':
+            prSeq.sequence.pop()
+        
+        prSeq.sequence = string.join(prSeq.sequence, '')
+        return prSeq
+
         
 
 
@@ -865,7 +954,9 @@ class SequenceList(object):
         p = Popen(["clustalo", "-i", "-"], stdin=PIPE, stdout=PIPE, stderr=PIPE)
         ret = p.communicate(input=flob.getvalue())
         #ret = p.communicate()
-        #print ret
+        if ret[1]:
+            print ret
+            raise Glitch, "clustalo()  Something wrong here ..."
         flob.close()
         a = func.readAndPop(ret[0])
         a.makeSequenceForNameDict()

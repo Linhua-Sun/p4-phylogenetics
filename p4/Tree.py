@@ -111,7 +111,8 @@ class Tree(object):
        Tree.iterPreOrder
        Tree.nextNode
 
-
+    See also Node methods that do similar things starting from a given node.
+    
 **Copy**
 
      .. autosummary::
@@ -1622,7 +1623,7 @@ class Tree(object):
         theNode = self.root
         preOrdIndx = 0
         postOrdIndx = 0
-        if self.preOrder == None or self.postOrder == None:
+        if self.preOrder == None or self.postOrder == None or len(self.preOrder) != len(self.nodes) or len(self.postOrder) != len(self.nodes):
             if var.usePfAndNumpy:
                 self.preOrder = numpy.array([var.NO_ORDER] * len(self.nodes), numpy.int32)
                 self.postOrder = numpy.array([var.NO_ORDER] * len(self.nodes), numpy.int32)
