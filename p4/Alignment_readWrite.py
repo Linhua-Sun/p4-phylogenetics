@@ -1079,6 +1079,7 @@ def writePhylip(self, fName=None, interleave=True, whitespaceSeparatesNames=True
             maxNameLen = theNameLen
         if s.name.count(' '):
             namesHaveSpaces = True
+    #print 'The longest name length in this alignment is %i' % maxNameLen
             
     if whitespaceSeparatesNames and namesHaveSpaces:
         crimes = []
@@ -1109,9 +1110,10 @@ def writePhylip(self, fName=None, interleave=True, whitespaceSeparatesNames=True
 
     nameWid = var.phylipDataMaxNameLength + 1
     spacer1 = var.phylipDataMaxNameLength + 1
-    if whitespaceSeparatesNames and (maxNameLen > nameWid):
+    if whitespaceSeparatesNames and (maxNameLen >= nameWid):
         nameWid = maxNameLen + 1
         spacer1 = 11
+    #print 'The nameWid is %i' % nameWid
     
     
     if fName == None or fName == sys.stdout:
@@ -1140,6 +1142,8 @@ def writePhylip(self, fName=None, interleave=True, whitespaceSeparatesNames=True
             #theFormat = "%-" + "%is" % (var.phylipDataMaxNameLength + 1)
             #f.write(theFormat % k.name[0:var.phylipDataMaxNameLength])
             theFormat = "%-" + "%is" % (nameWid)
+            #sys.stdout.write(theFormat % k.name[0:nameWid])
+            #sys.stdout.write('%s\n' % k.sequence[0:upper])
             f.write(theFormat % k.name[0:nameWid])
             f.write('%s\n' % k.sequence[0:upper])
         lower = upper

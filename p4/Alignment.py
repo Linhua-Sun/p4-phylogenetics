@@ -937,6 +937,7 @@ class Alignment(SequenceList):
             for dp in dupeNumPairs:
                 j = dp[1]   # remove the second, not the first
                 toRemove.append(self.sequences[j])
+                #self.sequences[dp[0]].name += "_%s" % self.sequences[j].name
             for s in toRemove:
                 self.sequences.remove(s)
 
