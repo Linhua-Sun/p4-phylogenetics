@@ -494,6 +494,19 @@ def removeNode(self, specifier, alsoRemoveSingleChildParentNode=True, alsoRemove
     if var.usePfAndNumpy:
         self.deleteCStuff()
 
+    # For cases where the tree is originally with a single child root
+    # -- we don't want to then delete that root below.
+    assert self.root.leftChild
+    isOriginallySingleChildRoot = False
+    if not self.root.leftChild.sibling:
+        isOriginallySingleChildRoot = True
+
+    # For cases where we originally have a bi-Root, that we would like to keep.
+    isOriginallyBiRoot = False
+    if self.root.getNChildren() == 2:
+        isOriginallyBiRoot = True
+        
+
     #print "Removing node number", rNode.nodeNum
     #hitList = []
     #self.recursivelyListNodeIndicesDownTo(hitList, rNode)
@@ -528,12 +541,13 @@ def removeNode(self, specifier, alsoRemoveSingleChildParentNode=True, alsoRemove
                 raise Glitch, gm
 
     haveRemovedSingleChildRoot = False
-    # The tree may have been bifurcating, and left a single-child root.
-    if alsoRemoveSingleChildRoot and self.root.leftChild and not self.root.leftChild.sibling:
-        hitNodes.append(self.root)
-        self.root = self.root.leftChild
-        self.root.parent = None
-        haveRemovedSingleChildRoot = True
+    if not isOriginallySingleChildRoot:
+        # The tree may have been bifurcating, and left a single-child root.
+        if alsoRemoveSingleChildRoot and self.root.leftChild and not self.root.leftChild.sibling:
+            hitNodes.append(self.root)
+            self.root = self.root.leftChild
+            self.root.parent = None
+            haveRemovedSingleChildRoot = True
 
     for n in hitNodes:
         n.wipe()
@@ -595,11 +609,12 @@ def removeNode(self, specifier, alsoRemoveSingleChildParentNode=True, alsoRemove
                 self.nodes.remove(rNodeParnt)
                 del rNodeParnt
 
-    if self.root.getNChildren() == 2 and alsoRemoveBiRoot:
-        self.removeRoot()
-        if ignoreBrLens:
-            for ch in self.root.iterChildren():
-                ch.br.len = 0.1
+    if not isOriginallyBiRoot:
+        if self.root.getNChildren() == 2 and alsoRemoveBiRoot:
+            self.removeRoot()
+            if ignoreBrLens:
+                for ch in self.root.iterChildren():
+                    ch.br.len = 0.1
     
     for i in range(len(self.nodes)):
         self.nodes[i].nodeNum = i
