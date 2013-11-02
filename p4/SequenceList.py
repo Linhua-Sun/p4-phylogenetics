@@ -930,7 +930,12 @@ class SequenceList(object):
         p = Popen(["muscle"], stdin=PIPE, stdout=PIPE, stderr=PIPE)
         ret = p.communicate(input=flob.getvalue())
         flob.close()
-        a = func.readAndPop(ret[0])
+        try:
+            a = func.readAndPop(ret[0])
+        except Glitch:
+            print ret
+            raise Glitch, "Something didn't work ..."
+
         a.makeSequenceForNameDict()
         newSequenceList = []
         for sSelf in self.sequences:
