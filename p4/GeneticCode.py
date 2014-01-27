@@ -14,6 +14,7 @@ class GeneticCode:
 
     - **1** standard
     - **2** vertebrate mito
+    - **3** yeast mito
     - **4** Mold, Protozoan
     - **5** invertbrate mito
     - **6** The Ciliate, Dasycladacean and Hexamita Nuclear Code
@@ -24,6 +25,7 @@ class GeneticCode:
     -  **13** Ascidian Mitochondrial Code
     -  **14** Alternative Flatworm Mitochondrial Code
     -  **21** Trematode Mitochondrial Code
+    -  **24** Pterobranchia mito
 
     If more transl_tables are needed, you should be able to just drop
     them in, with a little tweaking.
@@ -68,6 +70,13 @@ class GeneticCode:
             Base2    = 'TTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGG'
             Base3    = 'TCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAG'
 
+        elif transl_table == 3:  #3. The Yeast Mitochondrial Code (transl_table=3)
+            AAs    = 'FFLLSSSSYY**CCWWTTTTPPPPHHQQRRRRIIMMTTTTNNKKSSRRVVVVAAAADDEEGGGG'
+            Starts = '----------------------------------MM----------------------------'
+            Base1  = 'TTTTTTTTTTTTTTTTCCCCCCCCCCCCCCCCAAAAAAAAAAAAAAAAGGGGGGGGGGGGGGGG'
+            Base2  = 'TTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGG'
+            Base3  = 'TCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAG'
+
         elif transl_table == 4: # Mold, Protozoan,
                                 # and Coelenterate Mitochondrial Code and the Mycoplasma/Spiroplasma Code
             AAs    = 'FFLLSSSSYY**CCWWLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG'
@@ -106,7 +115,6 @@ class GeneticCode:
             Base2  = 'TTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGG'
             Base3  = 'TCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAG'
 
-
         elif transl_table == 11: # The Bacterial and Plant Plastid Code (transl_table=11)
             AAs    = 'FFLLSSSSYY**CC*WLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG'
             Starts = '---M---------------M------------MMMM---------------M------------'
@@ -120,7 +128,6 @@ class GeneticCode:
             Base1  = 'TTTTTTTTTTTTTTTTCCCCCCCCCCCCCCCCAAAAAAAAAAAAAAAAGGGGGGGGGGGGGGGG'
             Base2  = 'TTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGG'
             Base3  = 'TCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAG'
-
 
         elif transl_table == 13: # The Ascidian Mitochondrial Code (transl_table=13)
             AAs    = 'FFLLSSSSYY**CCWWLLLLPPPPHHQQRRRRIIMMTTTTNNKKSSGGVVVVAAAADDEEGGGG'
@@ -143,10 +150,16 @@ class GeneticCode:
             Base2  = 'TTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGG'
             Base3  = 'TCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAG'
 
+        elif transl_table == 24: # Pterobranchia mitochondrial code (transl_table=24)
+            AAs    = 'FFLLSSSSYY**CCWWLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSSKVVVVAAAADDEEGGGG'
+            Starts = '---M---------------M---------------M---------------M------------'
+            Base1  = 'TTTTTTTTTTTTTTTTCCCCCCCCCCCCCCCCAAAAAAAAAAAAAAAAGGGGGGGGGGGGGGGG'
+            Base2  = 'TTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGG'
+            Base3  = 'TCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAG'
 
 
         else:
-            print "GeneticCode: I don't know that transl_table.  Get it from NCBI and add it!"
+            print "GeneticCode: I don't know transl_table %i.  Get it from NCBI and add it!" % transl_table
             sys.exit()
 
         for i in range(64):
