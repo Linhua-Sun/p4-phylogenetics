@@ -1244,11 +1244,71 @@ class Alignment(SequenceList):
             self.nexusSets.charPartition.dump()
             self.dump()
 
+    def changeDataTypeTo(self, newDataType, newSymbols=None):
+        """Coerce the alignment to be a new datatype.
 
+        This would be good for pathological cases where eg DNA with
+        lots of ambigs is mistaken for protein.
 
+        It is not sufficient to simply change the dataType -- we must
+        change the symbols and equates as well.  And the dataType for
+        all the sequences in self.  If you are changing to 'standard'
+        dataType, then you need to specify the symbols.  Due to
+        programmers laziness, if you need equates with standard
+        dataType, you will need to do that yourself --- its a
+        dictionary.
 
+        """
 
+        gm = ['Alignment.changeDataTypeTo(%s, newSymbols=%s)' % (newDataType, newSymbols)]
+        if newDataType not in ['dna', 'protein', 'standard']:
+            gm.append("newDataType must be one of 'dna', 'protein', 'standard'")
+            raise Glitch, gm
 
+        if newDataType == self.dataType:
+            gm.append("Self is already dataType %s" % self.dataType)
+            raise Glitch, gm
+
+        for s in self.sequences:
+            if newDataType == 'dna':
+                for c in s.sequence:
+                    if c not in var.validDnaChars:
+                        gm.append("Sequence %s, char %s not a valid DNA character." % (s.name, c))
+                        raise Glitch, gm
+                s.dataType = newDataType
+
+            elif newDataType == 'protein':
+                for c in s.sequence:
+                    if c not in var.validProteinChars:
+                        gm.append("Sequence %s, char %s not a valid protein character." % (s.name, c))
+                        raise Glitch, gm
+                s.dataType = newDataType
+
+            if newDataType == 'standard':
+                for c in s.sequence:
+                    if c not in newSymbols:
+                        gm.append("Sequence %s, char %s not a valid DNA character." % (s.name, c))
+                        raise Glitch, gm
+                s.dataType = newDataType
+
+        self.dataType = newDataType
+        if newDataType == 'dna':
+            self.symbols = 'acgt'
+            self.dim = 4
+            self.equates = {'n': 'acgt', 'm': 'ac', 'k': 'gt', # 'x': 'acgt', 
+                     'h': 'act', 'y': 'ct', 'v': 'acg',
+                     'w': 'at', 'd': 'agt', 'b': 'cgt',
+                     'r': 'ag', 's': 'cg'}
+        elif newDataType == 'protein':
+            self.symbols = 'arndcqeghilkmfpstwyv'
+            self.dim = 20
+            self.equates = {'b': 'dn', 'x': 'arndcqeghilkmfpstwyv', 'z': 'eq'}
+        elif newDataType == 'standard':
+            self.symbols = newSymbols
+            self.dim = len(newSymbols)
+
+        # Is this needed?  Probably not.
+        self.checkLengthsAndTypes()
 
 
 
