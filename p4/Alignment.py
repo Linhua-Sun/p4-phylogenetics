@@ -1244,7 +1244,7 @@ class Alignment(SequenceList):
             self.nexusSets.charPartition.dump()
             self.dump()
 
-    def changeDataTypeTo(self, newDataType, newSymbols=None):
+    def changeDataTypeTo(self, newDataType, newSymbols=None, newEquates=None):
         """Coerce the alignment to be a new datatype.
 
         This would be good for pathological cases where eg DNA with
@@ -1253,10 +1253,10 @@ class Alignment(SequenceList):
         It is not sufficient to simply change the dataType -- we must
         change the symbols and equates as well.  And the dataType for
         all the sequences in self.  If you are changing to 'standard'
-        dataType, then you need to specify the symbols.  Due to
-        programmers laziness, if you need equates with standard
-        dataType, you will need to do that yourself --- its a
-        dictionary.
+        dataType, then you need to specify the symbols and the
+        equates.  The symbols is a string, and the equates is a
+        dictionary (see eg yourAlignment.equates for a DNA alignment
+        to see the format).
 
         """
 
@@ -1268,6 +1268,10 @@ class Alignment(SequenceList):
         if newDataType == self.dataType:
             gm.append("Self is already dataType %s" % self.dataType)
             raise Glitch, gm
+
+        if newDataType == 'standard':
+            validChars = newSymbols + '-?' + ''.join(newEquates.keys())
+            #print "standard datatype: got validChars '%s'" % validChars
 
         for s in self.sequences:
             if newDataType == 'dna':
@@ -1286,8 +1290,8 @@ class Alignment(SequenceList):
 
             if newDataType == 'standard':
                 for c in s.sequence:
-                    if c not in newSymbols:
-                        gm.append("Sequence %s, char %s not a valid DNA character." % (s.name, c))
+                    if c not in validChars:
+                        gm.append("Sequence %s, char '%s' not in valid chars '%s'." % (s.name, c, validChars))
                         raise Glitch, gm
                 s.dataType = newDataType
 
@@ -1306,6 +1310,7 @@ class Alignment(SequenceList):
         elif newDataType == 'standard':
             self.symbols = newSymbols
             self.dim = len(newSymbols)
+            self.equates = newEquates
 
         # Is this needed?  Probably not.
         self.checkLengthsAndTypes()
