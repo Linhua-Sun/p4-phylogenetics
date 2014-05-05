@@ -297,6 +297,15 @@ def removeRoot(self):
     This removes the root node if the tree is rooted on a terminal
     node, or if the tree is rooted on a bifurcating node.  Otherwise,
     it refuses to do anything.
+
+    In the usual case of removing a bifurcating root, the branch
+    length of one fork of the bifurcation is added to the other fork,
+    so the tree length is preserved.
+
+    In the unusual case of removing a monofurcating root (a root that
+    is a terminal node, a tree-on-a-stick) then its branch length
+    disappears.
+
     """
 
     gm = ['\nTree.removeRoot()']

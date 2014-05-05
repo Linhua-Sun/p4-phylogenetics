@@ -60,6 +60,14 @@ void setBigQFromRMatrixDotCharFreq(double **theBigQ, double **theRMatrix, double
         }
         theBigQ[row][row] = -sum;
     }
+#if 0
+    printf("sbq: charFreq\n");
+    dump_pdvector(charFreq, dim);
+    printf("sbq: rMatrix\n");
+    dump_psdmatrix(theRMatrix, dim);
+    printf("sbq: bigQ\n");
+    dump_psdmatrix(theBigQ, dim);
+#endif
 
 
 }	
@@ -98,7 +106,11 @@ void normalizeBigQ(double **theBigQ, double *charFreq, int dim)
 				theBigQ[row][col] = theBigQ[row][col] * sumODE;
 			}
 		}
-		return;
+#if 0
+    printf("nbq: bigQ\n");
+    dump_psdmatrix(theBigQ, dim);
+#endif
+
 }
 
 
