@@ -807,7 +807,8 @@ def addNodeBetweenNodes(self, specifier1, specifier2):
         gm.append("The 2 specified nodes should have a parent-child relationship")
         raise Glitch, gm
 
-    self.deleteCStuff()
+    if var.usePfAndNumpy:
+        self.deleteCStuff()
 
     hasBrLens = False
     for n in self.iterNodes():
