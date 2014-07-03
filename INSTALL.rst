@@ -7,12 +7,12 @@ recommend using the mercurial repository.  See below.
 
 You can do a full install, but that requires a few pre-requisites.  If
 you do not have those pre-requisites you can install p4 as a pure
-Python module with limited functionality, but it might be all
+Python module with limited functionality, sometimes that might be all
 you need.
 
-Of course you need Python installed.  P4 wants a fairly recent Python,
+P4 wants a fairly recent Python,
 but I have not tried it out with Python 3 yet -- I doubt that it would
-work.  You will want Python built with readline.  To tell whether you
+work.  You will want Python built with readline (as most are).  To tell whether you
 have Python built with readline, call up interactive Python, type in
 something like 2 + 2, hit <return>, note that the answer is 4, and
 then hit <up arrow>.  If you get 2 + 2 back, you have a Python with
@@ -32,13 +32,10 @@ libraries, headers, and so on.
 You need Xcode, available from the apple web site.
 
 You need to install numpy, a python module, and the gsl library (Gnu
-Scientific Library).  To install on my Mac, I used MacPorts, and
-installed py26-numpy, which installed python v 2.6 with readline, and
-numpy, and I installed gsl-devel, which installed gsl and its header
-files.
+Scientific Library).  
 
-Update:  I installed it on a Snow Leopard machine with MacPorts by
-installing::
+In the past, I installed dependencies with MacPorts by
+doing::
 
     sudo port install py27-numpy
     sudo port install gsl-devel
@@ -50,23 +47,22 @@ executables (sphinx-build et al) had `-27` on the end of the name.
 See the Sphinx Makefile for making the Sphinx docs, where it says how
 to use executables with non-standard names.  Or just change the names.
 
-Another Update:  I've had better luck building my own Python 2.7 from source.
+Lately (on Maverics) I've had better luck building my Python 2.7 with Homebrew http://brew.sh/.
  
 **Preparations for the full install on Linux**
 
 If the installation process complains about lack of Python.h, then you
 need what on Ubuntu would be called 'python-dev' or some such, which
-is not included in the default Ubuntu 10.04. 
+is not included in the default Ubuntu install. 
 
-Someone kindly wrote to say that that they had recently installed p4
-on a 64-bit Ubuntu 11.04, and had to::
+I have recently installed p4
+on a 64-bit Ubuntu 14.04, and had to::
 
     sudo apt-get install python-numpy
     sudo apt-get install libgsl0-dev
     sudo apt-get install python-dev
 
-I confirmed that short list on my Ubuntu 11.10, and now 12.04 (except
-that numpy was already there).  If you don't already have mercurial,
+If you don't already have mercurial,
 you will need it as well, and sphinx for the html documentation::
 
     sudo apt-get install mercurial
@@ -223,24 +219,20 @@ Completion in MacOS 10.5 and 10.6
 
 P4 has a simple but useful completion module (I like it enough to use
 it for all my python work) but file completion in the python that
-comes with Mac OS 10.5 and 10.6 is broken.  To fix it, you can either
+comes with Mac OS after 10.5 is broken.  To fix it, you can either
 install a better Python (my preferred option), or, to partially fix it, you can, in a file
 '~/.p4/interactive' (that is a text file called 'interactive' that is
 put in a directory called '.p4' in your home directory) put a line
 that says 'var.readlineUsesEditline = True' (no quotes).  More info
 about this is found in the file p4/Var.py.
 
-On my Snow Leopard box, it comes with Python 2.6.1, which is a little
+The last time I tried that was on my old Snow Leopard box; it comes with Python 2.6.1, which is a little
 oldish but not too bad, and it comes with numpy.  So to build it all I
 needed was to add gsl-devel with MacPorts.  To use completion, I
 needed to set var.readlineUsesEditline = True as described above.  It
 then gave me method name completion, and doc strings, but no method
 sigs (ie the stuff inside the parentheses, ie the method args).
 However, the doc strings had the method sigs, so it was not too bad.
-Perhaps better to use MacPorts to install a newer Python, with a
-proper readline.  Saying "sudo port install py26-numpy" (assuming you
-have MacPorts installed) should do the trick.  Or just install a
-new Python from source.
 
 .. _completion_oddness:
 
@@ -373,17 +365,11 @@ If you install it in your home directory,
 
           export PATH
 
-If you want to statically link your gsl libs
---------------------------------------------
-
-For those who may not want to do the usual dynamic linking of gsl
-libs, it is possible to statically link the gsl libs to the pf.so
-module when you build it.  See the ``setup.py``
-file, and uncomment and adjust the ``extra_link_args`` line.
 
 
 Where things go
 ---------------
+
 
 The default installation location has a "root", which might be /usr or
 /usr/local, or your home directory.
@@ -404,6 +390,13 @@ The default location for the examples is something like::
     /usr/share/doc/p4-0.xx/Examples
 
  
+If you want to statically link your gsl libs
+============================================
+
+For those who may not want to do the usual dynamic linking of gsl
+libs, it is possible to statically link the gsl libs to the pf.so
+module when you build it.  See the ``setup.py``
+file, and uncomment and adjust the ``extra_link_args`` line.
 
 
 

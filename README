@@ -14,7 +14,7 @@ I have successfully installed it on linux and on Mac OS X.
 
 Thanks to Dave Swofford and Ziheng Yang for some code.
 
-Many of the ideas were influenced or stolen from the excellent
+Many of the ideas were influenced by or stolen from the excellent
 MrBayes, and thanks are given to the authors, John Huelsenbeck and
 Fredrik Ronquist.
 
@@ -27,21 +27,12 @@ Once you have it installed, call it from your command line, eg
 
 yourShellPrompt% p4
 
-and read the splash screen.  It will invite you to read the
-func.info() and it will tell you where some examples are installed.
-Try the examples, and make variations on them.  Python help() within
-p4, eg
+and read the splash screen.  Much of the documentation at http://p4.nhm.ac.uk is from the doc strings in the source, and you can as usual get at that via Python help() within p4.
 
-p4> help(Mcmc)
+There are examples (and other documentation) in the share directory in the source, as well as the source for the html docs, should you want to build your own sphinx webdocs.  
 
-will give a lot of documentation.
 
 Citation
 --------
 Foster, P.G. 2004.  Modeling compositional heterogeneity.  Syst. Biol. 53: 485-495.
 
-
-Using build.xml
----------------
-
-This needs pyAntTasks-X.X.jar installed in /usr/share/ant/lib, if it is not already.  I had to use a slightly older version (1.2) on my mac using native java, as the mac java was so old.

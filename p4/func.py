@@ -948,8 +948,7 @@ p4 is a Python package for phylogenetics.
 p4 is also the name of a Python script that loads the p4 package."""
     
     print """
-There are (Sphinx-generated) documentation web pages, which may be
-installed locally."""
+There is documentation at http://p4.nhm.ac.uk """
 
     print """
 Using the p4 script, after reading in the (optional) files on the

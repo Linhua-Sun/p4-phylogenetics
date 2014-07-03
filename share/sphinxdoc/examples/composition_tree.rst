@@ -18,4 +18,21 @@ speculation that it was due to compositional effects.
 We would want to have some indication of the confidence that we have
 in the composition tree, and the bootstrap can do that for us.  So we
 can bootstrap the original alignment, and for each pseudoreplicate
-make a composition tree, and then make a consensus with support values.
+make a composition tree, and then make a consensus with support values::
+
+    a = func.readAndPop('myData.phy')
+    tList = []
+    for bNum in range(200):
+        b = a.bootstrap()
+        d = b.compositionEuclideanDistanceMatrix()
+        t = d.bionj()
+        tList.append(t)
+
+    tt = Trees(trees=tList, taxNames=a.taxNames)
+    #tt.writeNexus('bnj200.nex')  
+    tp = TreePartitions(tt)
+    t = tp.consensus()
+    for n in t.iterInternalsNoRoot():
+        n.name = "%.0f" % (n.br.support * 100.) # convert to percent
+    t.writeNexus("compTree.nex")
+

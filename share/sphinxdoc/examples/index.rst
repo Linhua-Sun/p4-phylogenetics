@@ -19,6 +19,7 @@ Examples and Recipes
 
    draw_trees
    collapse_nodes
+   combine_supports
    composition_tree
    mrp
    kosiol_ais
