@@ -292,7 +292,7 @@ class Completer:
                         except TypeError:
                             words.append('%s(?)' % w)
                     elif inspect.isclass(getattr(theThing,w)):
-                        print 'y(w=%s)' % w,
+                        #print 'y(w=%s)' % w,
                         try:
                             if hasattr(getattr(theThing,w), '__init__'):
                                 args, varargs, varkw, defaults = \
