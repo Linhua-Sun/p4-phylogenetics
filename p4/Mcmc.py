@@ -83,11 +83,16 @@ class McmcTunings(object):
         object.__setattr__(self, 'doInternalBrLenPrior', False)
         object.__setattr__(self, 'doPolytomyResolutionClassPrior', False)
         object.__setattr__(self, 'polytomyPriorLogBigC', 0.0)
+        object.__setattr__(self, 'brLenPriorType', 'exponential')
+
 
     def __setattr__(self, item, val):
         #print "Got request to set %s to %s" % (item, val)
         if item in self.__dict__.keys() and item not in ['nParts', 'parts']:
-            # Here is where I should do the sanity checking of the new vals.  Some day.
+            # Here is where I should do the sanity checking of the new vals. 
+            if item == 'brLenPriorType':
+                assert val in ['exponential', 'uniform']
+
             #print "    Setting tuning '%s' to %s" % (item, val)
             object.__setattr__(self, item, val)
         else:
@@ -103,6 +108,7 @@ class McmcTunings(object):
         lst.append("%s%15s: %s" % (spacer, 'chainTemp', self.chainTemp))
         lst.append("%s%15s: %5.3f" % (spacer, 'local', self.local))
         lst.append("%s%15s: %5.3f" % (spacer, 'brLen', self.brLen))
+        lst.append("%s%15s: %s" % (spacer, 'brLenPriorType', self.brLenPriorType))
         lst.append("%s%15s: %5.3f" % (spacer, 'etbrPExt', self.etbrPExt))
         lst.append("%s%15s: %5.3f" % (spacer, 'etbrLambda', self.etbrLambda))
         lst.append("%s%15s: %s" % (spacer, 'relRate', self.relRate))
@@ -111,7 +117,7 @@ class McmcTunings(object):
         #lst.append("%s%30s: %5.3f" % (spacer, 'local', self.local))
         #lst.append("%s%30s: %5.3f" % (spacer, 'brLen', self.brLen))
         #lst.append("%s%30s: %s" % (spacer, 'relRate', self.relRate))
-        #lst.append("%s%30s: %5.3f" % (spacer, 'brLenPriorLambda', self.brLenPriorLambda))
+        lst.append("%s%15s: %5.3f" % (spacer, 'brLenPriorLambda', self.brLenPriorLambda))
         #lst.append("%s%30s: %s" % (spacer, 'doPolytomyResolutionClassPrior', self.doPolytomyResolutionClassPrior))
         #lst.append("%s%30s: %5.3f" % (spacer, 'polytomyPriorLogBigC', self.polytomyPriorLogBigC))
 

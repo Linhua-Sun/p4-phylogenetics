@@ -60,16 +60,21 @@ def proposeBrLen(self, theProposal):
         else:
             self.logPriorRatio = self.mcmc.tunings.brLenPriorLambdaForInternals * (oldBrLen - newBrLen)
     else:
-        self.logPriorRatio = self.mcmc.tunings.brLenPriorLambda * (oldBrLen - newBrLen)
+        if self.mcmc.tunings.brLenPriorType == 'exponential':
+            self.logPriorRatio = self.mcmc.tunings.brLenPriorLambda * (oldBrLen - newBrLen)
+        else:
+            self.logPriorRatio = 0.
 
     if var.doMcmcSp:
         theNode.br.lenChanged = True
         
     
+
+
 def proposeLocal(self, theProposal):  # from BAMBE and MrBayes.
 
     # doAbort is set if brLens are too long or too short, or if a constraint is violated.
-
+    
     #global localCalls
     #localCalls += 1
     #print 'localCalls %i' % localCalls
@@ -79,7 +84,7 @@ def proposeLocal(self, theProposal):  # from BAMBE and MrBayes.
     theProposal.doAbort = False
     pTree = self.propTree
     dbug = False
-    if 0 and self.mcmc.gen == 14:
+    if 0 and self.mcmc.gen == 0:
         dbug = True
 
     if dbug:
@@ -259,12 +264,6 @@ def proposeLocal(self, theProposal):  # from BAMBE and MrBayes.
     x = u.br.len
     y = x + v.br.len
     newMRatio = math.exp(theProposal.tuning * (random.random() - 0.5))  # by default, 0.909 to 1.1
-    #if 0:
-    #    theRan = random.random()
-    #    if theRan < 0.1:
-    #        newMRatio = 1.e-8
-    #    elif theRan < 0.2:
-    #        newMRatio = 1000.
     newM = m * newMRatio
 
     # Hopefully these checks will not be needed forever.
@@ -289,12 +288,17 @@ def proposeLocal(self, theProposal):  # from BAMBE and MrBayes.
     ##    raise Glitch, gm
 
     if 0 and dbug:
+        print
         print "m, the sum of brLens from a up to c, is %f" % m
         print "x, from a to u, is %f" % x
         print "y, from a to v, is %f" % y
         print "newMRatio is %f" % newMRatio
         print "newM is %f" % newM
-        
+    
+    #################################################################
+    # Detach either u or v, then re-attach somewhere between a and c.
+    #################################################################
+
     if random.random() < 0.5:
         ## detach u
         ##                   +------c
@@ -311,8 +315,9 @@ def proposeLocal(self, theProposal):  # from BAMBE and MrBayes.
         ##    |
         ##    +----------X
 
-        newY = y * newMRatio;
+        newY = y * newMRatio
         newX = random.random() * newM
+
         # newX should be at least var.BRLEN_MIN away from newY
         safety = 0
         while math.fabs(newY - newX) < var.BRLEN_MIN:
@@ -323,6 +328,7 @@ def proposeLocal(self, theProposal):  # from BAMBE and MrBayes.
                     print "Unable to place newX sufficiently far away from newY"
                 theProposal.doAbort = True
                 return
+
         if 0 and dbug:
             print "Choose to detach node u (not v)"
             print "newY is (%f * %f =) %f" % (y, newMRatio, newY)
@@ -368,6 +374,8 @@ def proposeLocal(self, theProposal):  # from BAMBE and MrBayes.
             if 0 and dbug:
                 print "-> detach u, reattach between a and v, so no topology change"
                 pTree.draw(width=80, showInternalNodeNames=1, addToBrLen=0.0)
+
+
         else:
             ## a topology change
             ##
@@ -461,6 +469,7 @@ def proposeLocal(self, theProposal):  # from BAMBE and MrBayes.
 
         newX = x * newMRatio
         newY = random.random() * newM
+
         # newY should be at least var.BRLEN_MIN away from newX
         safety = 0
         while math.fabs(newY - newX) < var.BRLEN_MIN:
@@ -471,6 +480,7 @@ def proposeLocal(self, theProposal):  # from BAMBE and MrBayes.
                     print "Unable to place newY sufficiently far away from newX"
                 theProposal.doAbort = True
                 return
+
         if 0 and dbug:
             print "Choose to detach node v (not u)"
             print "newX is (%f * %f =) %f" % (x, newMRatio, newX)
@@ -594,20 +604,51 @@ def proposeLocal(self, theProposal):  # from BAMBE and MrBayes.
                     pTree.checkSplitKeys(useOldName=True, glitch=False)
                 
 
-
+    
     # Check that new brLens are not too short or too long.  Ronquist
     # suggests that if that is the case, then just abort, rather than
     # fussing with reflections.
-    if c.br.len < var.BRLEN_MIN or v.br.len < var.BRLEN_MIN or u.br.len < var.BRLEN_MIN:
-        if dbug:
+    if 0:
+        if c.br.len < var.BRLEN_MIN or v.br.len < var.BRLEN_MIN or u.br.len < var.BRLEN_MIN:
+            #if dbug:
             print "At least 1 brLen is too short."
-        theProposal.doAbort = True
-        return
-    elif c.br.len > var.BRLEN_MAX or v.br.len > var.BRLEN_MAX or u.br.len > var.BRLEN_MAX:
-        if dbug: 
-            print "At least 1 brLen is too long."
-        theProposal.doAbort = True
-        return
+            theProposal.doAbort = True
+            return
+        elif c.br.len > var.BRLEN_MAX or v.br.len > var.BRLEN_MAX or u.br.len > var.BRLEN_MAX:
+            #if dbug: 
+            print "At least 1 brLen is too long.  Aborting. (No big deal ...)"
+            theProposal.doAbort = True
+            return
+
+    if 1:
+        if c.br.len < var.BRLEN_MIN:
+            #print "c  %i  too short" % self.mcmc.gen
+            theProposal.doAbort = True
+            return
+        if v.br.len < var.BRLEN_MIN:
+            #print "v  %i  too short" % self.mcmc.gen
+            theProposal.doAbort = True
+            return
+        if u.br.len < var.BRLEN_MIN:
+            #print "u  %i  too short" % self.mcmc.gen
+            theProposal.doAbort = True
+            return
+        if c.br.len > var.BRLEN_MAX:
+            #print "c  %i  too long" % self.mcmc.gen
+            theProposal.doAbort = True
+            return
+        if v.br.len > var.BRLEN_MAX:
+            #print "v  %i  too long" % self.mcmc.gen
+            theProposal.doAbort = True
+            return
+        if u.br.len > var.BRLEN_MAX:
+            #print "u  %i  too long" % self.mcmc.gen
+            theProposal.doAbort = True
+            return
+
+
+
+
 
     #print self.mcmc.constraints, theProposal.topologyChanged
     #raise Glitch
@@ -773,47 +814,51 @@ def proposeLocal(self, theProposal):  # from BAMBE and MrBayes.
             
         
     else:  # Do not doInternalBrLenPrior
-        self.logPriorRatio = self.mcmc.tunings.brLenPriorLambda * (m - newM)
-        if 0:  # Do the same calculation the long way, edge by edge.
-            #print "logPriorRatio = %+.4f" % self.logPriorRatio,
-            foo0 = (self.mcmc.tunings.brLenPriorLambda * m) - (self.mcmc.tunings.brLenPriorLambda * newM)
-            #print "%+.4f" % foo0,
+        if self.mcmc.tunings.brLenPriorType == 'uniform':
+            self.logPriorRatio = 0.0
+        elif self.mcmc.tunings.brLenPriorType == 'exponential':
+            self.logPriorRatio = self.mcmc.tunings.brLenPriorLambda * (m - newM)
+            if 0:  # Do the same calculation the long way, edge by edge.
+                #print "logPriorRatio = %+.4f" % self.logPriorRatio,
+                foo0 = (self.mcmc.tunings.brLenPriorLambda * m) - (self.mcmc.tunings.brLenPriorLambda * newM)
+                #print "%+.4f" % foo0,
 
-            foo = 0.0
-            if newX < newY: # no topology change
-                ##           newX    newY   newM
-                ##           +       +      +
-                ##
-                ##                   +------c
-                ##           +-------|(v)
-                ##    +------|(u)    +------d
-                ##    |      |
-                ##    |(a)   +-------b
-                ##    |
-                ##    +------X
-                foo += (self.mcmc.tunings.brLenPriorLambda * x) - (self.mcmc.tunings.brLenPriorLambda * newX)
-                foo += (self.mcmc.tunings.brLenPriorLambda * (y - x)) - (self.mcmc.tunings.brLenPriorLambda * (newY - newX))
-                foo += (self.mcmc.tunings.brLenPriorLambda * (m - y)) - (self.mcmc.tunings.brLenPriorLambda * (newM - newY))
-            else: # with topology change
-                ##           newY    newX   newM
-                ##           +       +      +
-                ##
-                ##                   +------c
-                ##           +-------|(u)
-                ##    +------|(v)    +------b
-                ##    |      |
-                ##    |(a)   +-------d
-                ##    |
-                ##    +------X
-                foo += (self.mcmc.tunings.brLenPriorLambda * x) - (self.mcmc.tunings.brLenPriorLambda * newY)
-                foo += (self.mcmc.tunings.brLenPriorLambda * (y - x)) - (self.mcmc.tunings.brLenPriorLambda * (newX - newY))
-                foo += (self.mcmc.tunings.brLenPriorLambda * (m - y)) - (self.mcmc.tunings.brLenPriorLambda * (newM - newX))
-            #print "%+.4f" % foo
-            if (math.fabs(self.logPriorRatio - foo0) > 1.e-10):
-                print "differs-- foo0, %g %g" % (self.logPriorRatio, foo0)
-            if (math.fabs(self.logPriorRatio - foo) > 1.e-10):
-                print "differs-- foo, %g %g" % (self.logPriorRatio, foo)
-
+                foo = 0.0
+                if newX < newY: # no topology change
+                    ##           newX    newY   newM
+                    ##           +       +      +
+                    ##
+                    ##                   +------c
+                    ##           +-------|(v)
+                    ##    +------|(u)    +------d
+                    ##    |      |
+                    ##    |(a)   +-------b
+                    ##    |
+                    ##    +------X
+                    foo += (self.mcmc.tunings.brLenPriorLambda * x) - (self.mcmc.tunings.brLenPriorLambda * newX)
+                    foo += (self.mcmc.tunings.brLenPriorLambda * (y - x)) - (self.mcmc.tunings.brLenPriorLambda * (newY - newX))
+                    foo += (self.mcmc.tunings.brLenPriorLambda * (m - y)) - (self.mcmc.tunings.brLenPriorLambda * (newM - newY))
+                else: # with topology change
+                    ##           newY    newX   newM
+                    ##           +       +      +
+                    ##
+                    ##                   +------c
+                    ##           +-------|(u)
+                    ##    +------|(v)    +------b
+                    ##    |      |
+                    ##    |(a)   +-------d
+                    ##    |
+                    ##    +------X
+                    foo += (self.mcmc.tunings.brLenPriorLambda * x) - (self.mcmc.tunings.brLenPriorLambda * newY)
+                    foo += (self.mcmc.tunings.brLenPriorLambda * (y - x)) - (self.mcmc.tunings.brLenPriorLambda * (newX - newY))
+                    foo += (self.mcmc.tunings.brLenPriorLambda * (m - y)) - (self.mcmc.tunings.brLenPriorLambda * (newM - newX))
+                #print "%+.4f" % foo
+                if (math.fabs(self.logPriorRatio - foo0) > 1.e-10):
+                    print "differs-- foo0, %g %g" % (self.logPriorRatio, foo0)
+                if (math.fabs(self.logPriorRatio - foo) > 1.e-10):
+                    print "differs-- foo, %g %g" % (self.logPriorRatio, foo)
+        else:
+            raise Glitch, "This should not happen."
 
     if oldRoot:
         if dbug:
@@ -1424,11 +1469,14 @@ def proposeETBR_Blaise(self, theProposal):
     # branch length.  The number of internal branches does not change
     # (though the number of polytomies may change), so the topology prior
     # ratio is always 1.
-    lnPrior = -self.mcmc.tunings.brLenPriorLambda * (vA1-vA0)
-    if x0Uncon:
-        lnPrior += -self.mcmc.tunings.brLenPriorLambda * (vX1-vX0)
-    if y0Uncon:
-        lnPrior += -self.mcmc.tunings.brLenPriorLambda * (vY1-vY0)
+    if self.mcmc.tunings.brLenPriorType == 'exponential':
+        lnPrior = -self.mcmc.tunings.brLenPriorLambda * (vA1-vA0)
+        if x0Uncon:
+            lnPrior += -self.mcmc.tunings.brLenPriorLambda * (vX1-vX0)
+        if y0Uncon:
+            lnPrior += -self.mcmc.tunings.brLenPriorLambda * (vY1-vY0)
+    elif self.mcmc.tunings.brLenPriorType == 'uniform':
+        self.logPriorRatio = 0.0
         
     # The proposal ratio is the product of the proposal ratios for
     # extension of each end of eA, as well as the branch multipliers.  The
@@ -2245,7 +2293,7 @@ def proposeAddEdge(self, theProposal):
         safety = 0
         while newNode.br.len < var.BRLEN_MIN or newNode.br.len > var.BRLEN_MAX:
             newNode.br.len = - (1.0/self.mcmc.tunings.brLenPriorLambda) * math.log(1. - random.random())
-            safety =+ 1
+            safety += 1
             if safety > 20:
                 gm.append("Unable to find a good branch length for the new edge.")
                 gm.append("Probably a programming error.")

@@ -220,7 +220,7 @@ class Var(object):
         # not work, but the rest of it seems to work.
         #
         # Update on the above.  I got my python2.5, and now python2.6
-        # from MacPorts, and they were both fine.
+        # from MacPorts, and they were both fine.  And 2.7 from HomeBrew.
         self.readlineUsesEditline = False
 
 
