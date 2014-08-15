@@ -1476,7 +1476,7 @@ def proposeETBR_Blaise(self, theProposal):
         if y0Uncon:
             lnPrior += -self.mcmc.tunings.brLenPriorLambda * (vY1-vY0)
     elif self.mcmc.tunings.brLenPriorType == 'uniform':
-        self.logPriorRatio = 0.0
+        lnPrior = 0.0
         
     # The proposal ratio is the product of the proposal ratios for
     # extension of each end of eA, as well as the branch multipliers.  The
