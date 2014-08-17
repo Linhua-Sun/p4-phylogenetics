@@ -22,6 +22,7 @@ class Tree(object):
     * ``preOrder`` and ``postOrder``, lists of node numbers
     * ``recipWeight``, the weight, if it exists, is usually 1/something, so the reciprocal looks nicer ...
     * ``nexusSets``, if it exists, a NexusSets object.
+    * ``len``, the sum of all the branch lengths 
 
 **Properties**
     
@@ -60,9 +61,6 @@ class Tree(object):
         Tree.tv
         Tree.btv
         Tree.isFullyBifurcating
-        Tree.len
-        Tree.lenInternals
-        Tree.stemminess
         Tree.taxSetIsASplit
         Tree.getAllLeafNames
         Tree.getChildrenNums
@@ -236,6 +234,7 @@ class Tree(object):
         self.doDataPart = 0
         self.nexusSets = None
         self.nodeForSplitKeyDict = None
+        self.len = None
 
 
     #########################################################
@@ -1835,29 +1834,29 @@ class Tree(object):
         for n in self.iterNodesNoRoot():
             n.br.len = 0.1
 
-    def len(self):
-        """Return the sum of all br.len's."""
-        total = 0.0
-        for n in self.iterNodesNoRoot():
-            total += n.br.len
-        return total
+    # def len(self):
+    #     """Return the sum of all br.len's."""
+    #     total = 0.0
+    #     for n in self.iterNodesNoRoot():
+    #         total += n.br.len
+    #     return total
 
-    def lenInternals(self):
-        """Return the sum of all internal br.len's."""
-        total = 0.0
-        for n in self.iterInternalsNoRoot():
-            total += n.br.len
-        return total
+    # def lenInternals(self):
+    #     """Return the sum of all internal br.len's."""
+    #     total = 0.0
+    #     for n in self.iterInternalsNoRoot():
+    #         total += n.br.len
+    #     return total
 
-    def stemminess(self):
-        """Ratio of internal branches to overall tree length.
+    # def stemminess(self):
+    #     """Ratio of internal branches to overall tree length.
         
-        Also called 'treeness'.  Via Phillips and Penny, MPE 2003, but
-        they cite Lanyon 1988."""
+    #     Also called 'treeness'.  Via Phillips and Penny, MPE 2003, but
+    #     they cite Lanyon 1988."""
 
-        total = self.len()
-        internals = self.lenInternals()
-        return internals/total
+    #     total = self.len()
+    #     internals = self.lenInternals()
+    #     return internals/total
     
     def _makeRCSplitKeys(self, splitList=None):
         """Make long integer-valued split keys.

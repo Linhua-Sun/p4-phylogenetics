@@ -621,28 +621,35 @@ def proposeLocal(self, theProposal):  # from BAMBE and MrBayes.
             return
 
     if 1:
+        complain = True
         if c.br.len < var.BRLEN_MIN:
-            #print "c  %i  too short" % self.mcmc.gen
+            if complain:
+                print "c  %i  too short" % self.mcmc.gen
             theProposal.doAbort = True
             return
         if v.br.len < var.BRLEN_MIN:
-            #print "v  %i  too short" % self.mcmc.gen
+            if complain:
+                print "v  %i  too short" % self.mcmc.gen
             theProposal.doAbort = True
             return
         if u.br.len < var.BRLEN_MIN:
-            #print "u  %i  too short" % self.mcmc.gen
+            if complain:
+                print "u  %i  too short" % self.mcmc.gen
             theProposal.doAbort = True
             return
         if c.br.len > var.BRLEN_MAX:
-            #print "c  %i  too long" % self.mcmc.gen
+            if complain:
+                print "c  %i  too long" % self.mcmc.gen
             theProposal.doAbort = True
             return
         if v.br.len > var.BRLEN_MAX:
-            #print "v  %i  too long" % self.mcmc.gen
+            if complain:
+                print "v  %i  too long" % self.mcmc.gen
             theProposal.doAbort = True
             return
         if u.br.len > var.BRLEN_MAX:
-            #print "u  %i  too long" % self.mcmc.gen
+            if complain:
+                print "u  %i  too long" % self.mcmc.gen
             theProposal.doAbort = True
             return
 
