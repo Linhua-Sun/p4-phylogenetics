@@ -4,6 +4,7 @@
 #include "pftypes.h"
 #include "data.h"
 #include "part.h"
+#include "defines.h"
 
 #include "dlsgamma.h"
 #include "gamma.h"
@@ -1788,6 +1789,39 @@ pf_p4_setBrLen(PyObject *self, PyObject *args)
 	return Py_None;
 }
 
+static PyObject *
+pf_p4_getTreeLen(PyObject *self, PyObject *args)
+{
+  p4_tree *aTree;
+  p4_node *aNode;
+  double leng;
+  int i, j;
+  
+  if(!PyArg_ParseTuple(args, "l", &aTree)) {
+    printf("Error pf_p4_getTreeLen: couldn't parse tuple\n");
+    return NULL;
+  }
+  
+  leng = 0.0;
+  for(i = 0; i < aTree->nNodes; i++) {
+    j = aTree->postOrder[i];
+    if(j != NO_ORDER) {
+      aNode = aTree->nodes[j];
+      if(aNode != aTree->root) {
+	leng += aNode->brLen[0];
+      }
+    }
+  }
+  
+  return Py_BuildValue("d", leng);
+	
+}
+PyDoc_STRVAR(doc_p4_getTreeLen,
+"pf.p4_getTreeLen(cTree) -> double\n\
+Get sum of br lens.  If the node is in theTree.nodes but not in the tree, it is skipped.\n");
+
+
+
 //-----------------------
 
 static PyObject *
@@ -2720,6 +2754,7 @@ static PyMethodDef pfMethods[] = {
 	{"p4_setNodeRelation", pf_p4_setNodeRelation, METH_VARARGS},
 	{"p4_setTreeRoot", pf_p4_setTreeRoot, METH_VARARGS},
 	{"p4_setBrLen", pf_p4_setBrLen, METH_VARARGS},
+	{"p4_getTreeLen", pf_p4_getTreeLen, METH_VARARGS, doc_p4_getTreeLen},
 
 	{"p4_setCompNum", pf_p4_setCompNum, METH_VARARGS},
 	{"p4_setRMatrixNum", pf_p4_setRMatrixNum, METH_VARARGS},
