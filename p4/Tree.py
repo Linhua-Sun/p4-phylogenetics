@@ -22,7 +22,6 @@ class Tree(object):
     * ``preOrder`` and ``postOrder``, lists of node numbers
     * ``recipWeight``, the weight, if it exists, is usually 1/something, so the reciprocal looks nicer ...
     * ``nexusSets``, if it exists, a NexusSets object.
-    * ``len``, the sum of all the branch lengths 
 
 **Properties**
     
@@ -65,6 +64,7 @@ class Tree(object):
         Tree.getAllLeafNames
         Tree.getChildrenNums
         Tree.getDegree
+        Tree.getLen()
         Tree.getNodeNumsAbove
         Tree.getPreAndPostOrderAbove
         Tree.getPreAndPostOrderAboveRoot
@@ -234,7 +234,6 @@ class Tree(object):
         self.doDataPart = 0
         self.nexusSets = None
         self.nodeForSplitKeyDict = None
-        self.len = None
 
 
     #########################################################
@@ -1834,12 +1833,17 @@ class Tree(object):
         for n in self.iterNodesNoRoot():
             n.br.len = 0.1
 
-    # def len(self):
-    #     """Return the sum of all br.len's."""
-    #     total = 0.0
-    #     for n in self.iterNodesNoRoot():
-    #         total += n.br.len
-    #     return total
+    def getLen(self):
+        """Return the sum of all br.len's."""
+        if self.cTree:
+            # About 0.01 msec for a tree with 1000 leaves
+            return pf.p4_getTreeLen(self.cTree)
+        else:
+            # About 2 msec for a tree with 1000 leaves.
+            total = 0.0
+            for n in self.iterNodesNoRoot():
+                total += n.br.len
+            return total
 
     # def lenInternals(self):
     #     """Return the sum of all internal br.len's."""
