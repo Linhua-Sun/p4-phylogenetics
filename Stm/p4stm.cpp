@@ -210,14 +210,16 @@ public:
     std::size_t nOnes;
     int nRel;
     nRel = 0;
+    //std::cout << "    flagRelevantSplits() ..." << std::endl;
     for(int i = 0; i < (nNo - 1); i++) {
       n = nodes[postOrder[i]];
       if(n->isLeaf == 0) {
   	n->isRelevant = 0;
   	n->bKK->bK = n->bitKey;
+  	//std::cout << "BigT node " << n->nodeNum << " firstOnePos " << iT->firstOnePos  << std::endl;
   	if(n->bKK->bK[iT->firstOnePos] == 1) {
   	  n->bKK->bK.flip();
-  	  //std::cout << "    flipping ..." << std::endl;
+  	  //std::cout << "  so flipping ..." << std::endl;
   	}
   	n->bKK->bK &= iT->taxBits;
   	//std::cout << "BigT node " << n->nodeNum << " bitKey " << n->bitKey << " iT->taxBits " << iT->taxBits;

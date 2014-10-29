@@ -224,6 +224,11 @@ class Var(object):
         self.readlineUsesEditline = False
 
 
+        # Used by property stCalc, below
+        self._stCalc = 'native'
+
+
+
         try:
             import pf
             import numpy
@@ -496,6 +501,18 @@ class Var(object):
 
     Assuming that p4 can find them.
     """
+
+    # How the calculations are done in the STMcmc module.
+    def _get_stCalc(self):
+        return self._stCalc
+    def _set_stCalc(self, newVal):
+        goodVals = ['native', 'bitarray', 'p4stm']
+        if newVal not in goodVals:
+            gm = ["Got attempt to set var.stCalc to %s" % newVal]
+            gm.append("Should be one of %s" % goodVals)
+            raise Glitch, gm
+        self._stCalc = newVal
+    stCalc = property(_get_stCalc, _set_stCalc, _del_nothing)
 
 
 # Make a single instance.

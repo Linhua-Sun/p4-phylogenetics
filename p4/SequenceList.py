@@ -186,7 +186,7 @@ class Sequence(object):
 
         If the arg *checkStarts* is turned on (by default it is not turned
         on) then this method checks whether the first codon is a start
-        codon.
+        codon, and if it is then it uses it.
 
         Arg *nnn_is_gap* is for odd sequences where there are long
         stretches of 'nnn' codons, which probably should be gaps.
@@ -232,11 +232,12 @@ class Sequence(object):
                 protSeq[j] = gc.translate(theCodon)
                 if checkStarts and j == 0:
                     if theCodon in gc.startList:
-                        print "    Seq %s. The first codon, '%s', is a start codon" % (
-                            self.name, theCodon)
+                        sys.stderr.write("    Seq %s. The first codon, '%s', is a start codon -- making it m\n" % (
+                            self.name, theCodon))
+                        protSeq[j] = 'm'
                     else:
-                        print "    Seq %s. The first codon, '%s', is not a start codon" % (
-                            self.name, theCodon)
+                        sys.stderr.write("    Seq %s. The first codon, '%s', is not a start codon\n" % (
+                            self.name, theCodon))
 
         # Get rid of stop translation '*'
         if prSeq.sequence[-1] == '*':

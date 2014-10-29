@@ -1621,7 +1621,7 @@ class Tree(object):
         theNode = self.root
         preOrdIndx = 0
         postOrdIndx = 0
-        if self.preOrder == None or self.postOrder == None or len(self.preOrder) != len(self.nodes) or len(self.postOrder) != len(self.nodes):
+        if type(self.preOrder) == types.NoneType or type(self.postOrder) == types.NoneType or len(self.preOrder) != len(self.nodes) or len(self.postOrder) != len(self.nodes):
             if var.usePfAndNumpy:
                 self.preOrder = numpy.array([var.NO_ORDER] * len(self.nodes), numpy.int32)
                 self.postOrder = numpy.array([var.NO_ORDER] * len(self.nodes), numpy.int32)

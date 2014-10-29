@@ -24,3 +24,4 @@ Then install PyUBlas
 It installed in 
 /usr/local/lib/python2.7/dist-packages/PyUblas-2011.1-py2.7-linux-x86_64.egg
 
+Notes added 2014-09-03.  I was able to able to build it on the Mac again, using python, numpy, and boost from homebrew, and pyublas from pip.

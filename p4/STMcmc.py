@@ -3,19 +3,22 @@
 
 import pf,func
 from Var import var
-import math,random,string,sys,time,copy,os,cPickle,types,numpy,glob
+import math,random,string,sys,time,copy,os,cPickle,types,glob
+import numpy as np
 from Glitch import Glitch
 from TreePartitions import TreePartitions
 from Constraints import Constraints
 import datetime
+import bitarray
 
-haveLoadedP4stm = False
-try:
-    import p4stm
-    import pyublas # not explicitly used--but makes converters available
-    haveLoadedP4stm = True
-except ImportError:
-    pass
+# if var.stCalc == 'p4stm':
+#     haveLoadedP4stm = False
+#     try:
+#         import p4stm
+#         import pyublas # not explicitly used--but makes converters available
+#         haveLoadedP4stm = True
+#     except ImportError:
+#         pass
 
 
 def bitReduce(bk, txBits, lLen, sLen, allOnes):
@@ -110,20 +113,74 @@ class STChain(object):
         self.logProposalRatio = 0.0
         self.logPriorRatio = 0.0
 
-        self.getTreeLogLike(self.curTree)  
-        self.getTreeLogLike(self.propTree)
+        if var.stCalc == 'native':
+            self.getTreeLogLike(self.curTree)  
+            self.getTreeLogLike(self.propTree)
 
         self.stm = None
-        if self.stMcmc.usingP4stmModule:
+        if var.stCalc == 'p4stm':
             self.startStm()
+            self.p4stm_getTreeLogLike()
+            self.curTree.logLike = self.propTree.logLike
+
+        if var.stCalc == 'bitarray':
+            self.setupBitarrayCalcs()
+            self.getTreeLogLike_bitarray()
+            self.curTree.logLike = self.propTree.logLike
 
         #print "STChain init()"
         #self.curTree.draw()
         #print "logLike is %f" % self.curTree.logLike
 
+    def setupBitarrayCalcs(self):
+        # Prepare self.propTree (ie bigT).  First make n.stSplitKeys.  These are temporary.
+        for n in self.propTree.iterPostOrder():
+            if n == self.propTree.root:
+                break
+            if n.isLeaf:
+                spot = self.stMcmc.taxNames.index(n.name)
+                self.stMcmc.tBits[spot] = True
+                n.stSplitKey = bitarray.bitarray(self.stMcmc.tBits)
+                self.stMcmc.tBits[spot] = False
+            else:
+                n.stSplitKey = n.leftChild.stSplitKey.copy()
+                p = n.leftChild.sibling
+                while p:
+                    n.stSplitKey |= p.stSplitKey    # "or", in-place
+                    p = p.sibling
+
+        # Next transfer the internal node split keys to BigTSplitStuff objects
+        for n in self.propTree.iterInternalsNoRoot():
+            n.ss = BigTSplitStuff()
+            n.ss.spl = n.stSplitKey
+            n.ss.spl2 = n.ss.spl.copy()
+            n.ss.spl2.invert()
+        self.propTree.root.ss = BigTSplitStuff()
+
+    def refreshBitarrayPropTree(self):
+        # Refresh self.propTree (ie bigT) after a topology change.  
+        for n in self.propTree.iterPostOrder():
+            if n == self.propTree.root:
+                break
+            if n.isLeaf:
+                pass
+            else:
+                n.stSplitKey = n.leftChild.stSplitKey.copy()
+                p = n.leftChild.sibling
+                while p:
+                    n.stSplitKey |= p.stSplitKey    # "or", in-place
+                    p = p.sibling
+
+        # Next transfer the internal node split keys to BigTSplitStuff objects
+        for n in self.propTree.iterInternalsNoRoot():
+            n.ss.spl = n.stSplitKey
+            n.ss.spl2 = n.ss.spl.copy()
+            n.ss.spl2.invert()
+
+
     def startStm(self):
-        #print "usingP4stmModule"
-        self.stm = p4stm.Stm(len(self.stMcmc.taxNames))
+        # if using var.stCalc= 'p4stm'
+        self.stm = self.stMcmc.Stm(len(self.stMcmc.taxNames))
         self.bigTr = self.stm.setBigT(len(self.propTree.nodes), self.propTree.nTax, self.propTree.postOrder)
 
         for n in self.propTree.nodes:
@@ -162,6 +219,7 @@ class STChain(object):
         for t in self.stMcmc.trees:
             if self.stMcmc.dMetric == 'sd':
                 thisDist = t.beta *  maskedSymmetricDifference(aTree.skk, t.skSet, t.taxBits, self.stMcmc.nTax, t.nTax, t.allOnes)
+                #print "native: thisDist %f" % thisDist
             elif self.stMcmc.dMetric == 'scqdist':
                 thisDist = t.beta * slowQuartetDistance(self.propTree, t)
             else:
@@ -182,6 +240,34 @@ class STChain(object):
         self.stm.setBigTInternalBits()
         sd = self.stm.getSymmDiff()
         self.propTree.logLike = -sd
+
+    def getTreeLogLike_bitarray(self):
+        self.propTree.logLike = 0.0
+        for t in self.stMcmc.trees:
+            splSet = set()
+            # No need to consider (masked) splits with less than two
+            # 1s or more than nTax - 2 1s.  The nTax depends on the
+            # input tree.
+            upperGood = t.nTax - 2
+            for n in self.propTree.iterInternalsNoRoot():
+                # Choose which spl (spl or spl2) based on t.firstTax)
+                if n.ss.spl[t.firstTax]:
+                    n.ss.theSpl = n.ss.spl
+                else:
+                    n.ss.theSpl = n.ss.spl2
+                n.ss.maskedSplitWithTheFirstTaxOne = n.ss.theSpl & t.baTaxBits
+                # n.ss.onesCount = n.ss.maskedSplitWithTheFirstTaxOne.count()
+                # if n.ss.onesCount >= 2 and n.ss.onesCount <= upperGood:
+                #     splSet.add(n.ss.maskedSplitWithTheFirstTaxOne.tobytes())
+            #thisDist = t.beta * len(splSet.symmetric_difference(t.splSet))
+            thisDist = 2.0
+            #print "ba thisDist %f" % thisDist
+            self.propTree.logLike -= thisDist
+
+        
+
+
+        
         
     def propose(self, theProposal):
         gm = ['STChain.propose()']
@@ -220,11 +306,13 @@ class STChain(object):
             return 0.0
         else:
             #print "...about to calculate the likelihood of the propTree."
-            if self.stMcmc.usingP4stmModule:
+            if var.stCalc == 'p4stm':
                 self.p4stm_getTreeLogLike()
-            else:
-                
+            elif var.stCalc == 'native':
                 self.getTreeLogLike(self.propTree)
+            elif var.stCalc == 'bitarray':
+                self.refreshBitarrayPropTree()
+                self.getTreeLogLike_bitarray()
             #print "propTree logLike is", self.propTree.logLike
 
             logLikeRatio = self.propTree.logLike - self.curTree.logLike
@@ -264,7 +352,6 @@ class STChain(object):
             aProposal.accepted = True
             aProposal.nAcceptances[self.tempNum]  += 1
             
-
         #if not aProposal.doAbort:
         if acceptMove:
             a = self.propTree
@@ -284,16 +371,9 @@ class STChain(object):
 
 
 
-
 # for proposal probs
 fudgeFactor = {}
 fudgeFactor['local'] = 1.5
-fudgeFactor['brLen'] = 1.0
-fudgeFactor['polytomy'] = 1.0
-fudgeFactor['root3'] = 0.02           
-fudgeFactor['compLocation'] = 0.01    
-fudgeFactor['rMatrixLocation'] = 0.01 
-fudgeFactor['gdasrvLocation'] = 0.01  
 
 
 
@@ -396,19 +476,14 @@ class STMcmcProposalProbs(dict):
 class STProposal(object):
     def __init__(self, theSTMcmc=None):
         self.name = None
-        self.variant = 'gtr'  # only for rMatrix.  2p or gtr
         self.stMcmc = theSTMcmc            # reference loop!
         self.nChains = theSTMcmc.nChains
         self.pNum = -1
         self.mtNum = -1
         self.weight = 1.0
-        #self.tuning = None
         self.nProposals = [0] * self.nChains
         self.nAcceptances = [0] * self.nChains
         self.accepted = 0
-        #self.topologyChanged = 0
-        #self.nTopologyChangeAttempts = [0] * self.nChains
-        #self.nTopologyChanges = [0] * self.nChains
         self.doAbort = False
         self.nAborts = [0] * self.nChains
 
@@ -423,21 +498,6 @@ class STProposal(object):
             #print "getting tuning for %s, returning %f" % (self.name, getattr(self.mcmc.tunings, self.name))
             #print self.stMcmc.tunings
             return getattr(self.stMcmc.tunings, self.name)
-        elif self.name in ['comp', 'rMatrix', 'gdasrv', 'pInvar']:
-            #print "getting tuning for %s, partNum %i, returning %f" % (
-            #    self.name, self.pNum, getattr(self.mcmc.tunings.parts[self.pNum], self.name))
-            # the variant attribute is new, and can mess up reading older pickles.
-            if self.name == 'rMatrix' and hasattr(self, 'variant') and self.variant == '2p':
-                return getattr(self.mcmc.tunings.parts[self.pNum], 'twoP')
-            else:
-                return getattr(self.mcmc.tunings.parts[self.pNum], self.name)
-        elif self.name in ['compLocation', 'rMatrixLocation']:  # new, and causes older checkpoints to gag.
-            #print "getting tuning for %s, partNum %i, returning %f" % (
-            #    self.name, self.pNum, getattr(self.mcmc.tunings.parts[self.pNum], self.name))
-            if hasattr(self.mcmc.tunings.parts[self.pNum], self.name):
-                return getattr(self.mcmc.tunings.parts[self.pNum], self.name)
-            else:
-                return None
         else:
             return None
         
@@ -448,6 +508,17 @@ class STProposal(object):
     
     tuning = property(_getTuning, _setTuning, _delTuning) 
             
+class BigTSplitStuff(object):
+    # An organizer for splits on STMcmc.tree (ie bigT) internal nodes, only for use with bitarray
+    def __init__(self):
+        self.spl = None
+        self.spl2 = None
+        self.theSpl = None
+        self.maskedSplitWithFirstTaxOne = None
+        self.onesCount = None
+    def dump(self):
+        print "  ss: node %2i, spl=%s, spl2=%s" % (self.nodeNum, self.spl, self.spl2)
+
 
 
 class STMcmc(object):
@@ -481,10 +552,30 @@ class STMcmc(object):
         By default, the defaultBeta is 1.0.  The beta is the weight as
         given in Steel and Rodrigo 2008.  Each input tree needs one
         (although it may be that each $X_i$ needs one ...), and they
-        can be assigned before being passed given to this class.  If
+        can be assigned before being given to this class.  If
         theInputTree.beta is already assigned, it is left alone, but
         if it has not been assigned, then a default value as given
         here is assigned to it.
+
+
+    It is based on the Steel and Rodrigo 2008 description of a
+    likelihood model, "Maximum likelihood supertrees"
+    Syst. Biol. 57(2):243–250, 2008.  It does not have the corrections
+    described in the Bryant and Steel paper "Computing the
+    distribution of a tree metric" in IEEE/ACM Transactions on
+    computational biology and bioinformatics, VOL. 6, 2009.
+
+    There are three ways to calculate the likelihood, all giving the
+    same answer.
+    1.  Native.  Slow.
+    2.  Using the bitarray module.  Much faster.
+
+    3.  Using boost an ublas.  Even faster, but a bit of a bother to
+        get going.  Needs the Stm (p4stm) module.
+
+    It is under control of the variable var.stCalc, which can be one
+    of 'native', 'bitarray', and 'p4stm'.  By default it is native, so
+    you may want to at least install bitarray.
 
     To prepare for a run, instantiate an Mcmc object::
 
@@ -543,13 +634,12 @@ class STMcmc(object):
         for n in t.iterInternalsNoRoot():
             n.name = '%.0f' % (100. * n.br.support)
         t.writeNexus('cons.nex')
+
     """
 
     
-    #def __init__(self, inTrees, nChains=1, runNum=0, sampleInterval=100, checkPointInterval=10000, simulate=None, writePrams=True, constraints=None, verbose=True):
-    def __init__(self, inTrees, nChains=1, runNum=0, sampleInterval=100, checkPointInterval=None, verbose=True, defaultBeta=1.0, allowPolytomyInTrees=False, dMetric='sd', useP4stm=False):
+    def __init__(self, inTrees, nChains=1, runNum=0, sampleInterval=100, checkPointInterval=None, verbose=True, defaultBeta=1.0, allowPolytomyInTrees=False, dMetric='sd'):
         gm = ['STMcmc.__init__()']
-
         self.verbose = verbose
 
         # Each inTree needs a beta, default 1.0
@@ -657,23 +747,6 @@ class STMcmc(object):
 
         self.lastTimeCheck = None
 
-        # if simulate:
-        #     try:
-        #         simulate = int(simulate)
-        #     except (ValueError, TypeError):
-        #         gm.append("Arg 'simulate' should be an int, 1-31, inclusive.")
-        #         raise Glitch, gm
-        #     if simulate <= 0 or simulate > 31:
-        #         gm.append("Arg 'simulate' should be an int, 1-31, inclusive.")
-        #         raise Glitch, gm
-        # self.simulate = simulate
-        # if self.simulate:
-        #     self.simTree = self.tree.dupe()
-        #     self.simTree.data = self.tree.data.dupe()
-        #     self.simTree.calcLogLike(verbose=False)
-        #else:
-        #    self.simTree = None
-
         if self.nChains > 1:
             self.swapMatrix = []
             for i in range(self.nChains):
@@ -692,35 +765,85 @@ class STMcmc(object):
         allNames = []
         for t in inTrees:
             t.unsorted_taxNames = [n.name for n in t.iterLeavesNoRoot()]
-            allNames += t.unsorted_taxNames
+            allNames += t.unsorted_taxNames          # Efficient?  Probably does not matter.
         self.taxNames = list(set(allNames))
+        #print self.taxNames
         self.nTax = len(self.taxNames)
-        for t in inTrees:
-            sorted_taxNames = []
-            t.taxBits = 0L
-            for tNum in range(self.nTax):
-                tN = self.taxNames[tNum]
-                if tN in t.unsorted_taxNames:
-                    sorted_taxNames.append(tN)
-                    adder = 1L << tNum
-                    t.taxBits += adder
-            t.taxNames = sorted_taxNames
-            t.allOnes = 2L**(t.nTax) - 1
-            t.makeSplitKeys()
-            t.skSet = set([n.br.splitKey for n in t.iterInternalsNoRoot()])
+        if var.stCalc == 'bitarray':
+            #print "self.taxNames = ", self.taxNames
+            for t in inTrees:
+                sorted_taxNames = []
+                t.baTaxBits = []
+                for tNum in range(self.nTax):
+                    tN = self.taxNames[tNum]
+                    if tN in t.unsorted_taxNames:
+                        sorted_taxNames.append(tN)
+                        t.baTaxBits.append(True)
+                    else:
+                        t.baTaxBits.append(False)
+                t.taxNames = sorted_taxNames
+                t.baTaxBits = bitarray.bitarray(t.baTaxBits)
+                t.firstTax = t.baTaxBits.index(1)
+
+                # Can't use Tree.makeSplitKeys(), unfortunately.  So make split keys here.
+                self.tBits = [False] * self.nTax
+                for n in t.iterPostOrder():
+                    if n == t.root:
+                        break
+                    if n.isLeaf:
+                        spot = self.taxNames.index(n.name)
+                        self.tBits[spot] = True
+                        n.stSplitKey = bitarray.bitarray(self.tBits)
+                        self.tBits[spot] = False
+                    else:
+                        n.stSplitKey = n.leftChild.stSplitKey.copy()
+                        p = n.leftChild.sibling
+                        while p:
+                            n.stSplitKey |= p.stSplitKey    # "or", in-place
+                            p = p.sibling
+                t.skk = []
+                t.splSet = set()
+                for n in t.iterInternalsNoRoot():
+                    if not n.stSplitKey[t.firstTax]:   # make sure splitKey[firstTax] is a '1'
+                        n.stSplitKey.invert()
+                        n.stSplitKey &= t.baTaxBits     # 'and', in-place
+                    t.skk.append(n.stSplitKey)
+                    t.splSet.add(n.stSplitKey.tobytes()) # bytes so that I can use it as a set element
+
+        else:
+            assert var.stCalc in ['native', 'p4stm']
+            for t in inTrees:
+                sorted_taxNames = []
+                t.taxBits = 0L
+                for tNum in range(self.nTax):
+                    tN = self.taxNames[tNum]
+                    if tN in t.unsorted_taxNames:
+                        sorted_taxNames.append(tN)
+                        adder = 1L << tNum
+                        t.taxBits += adder
+                t.taxNames = sorted_taxNames
+                t.allOnes = 2L**(t.nTax) - 1
+                t.makeSplitKeys()
+                t.skSet = set([n.br.splitKey for n in t.iterInternalsNoRoot()])
 
         self.trees = inTrees
         self.tree = func.randomTree(taxNames=self.taxNames, name='stTree', randomBrLens=False)
-        self.tree.makeSplitKeys()
+        if var.stCalc in  ['native', 'p4stm']:
+            self.tree.makeSplitKeys()
 
-        self.usingP4stmModule = False
-        if useP4stm:
-            if haveLoadedP4stm:
-               self.usingP4stmModule = True
-            else:
-                gm.append("useP4stm is set, but I could not load the p4stm or the pyusblas modules.")
+        #elif var.stCalc == 'bitarray':
+            
+
+        self.Stm = None
+        if var.stCalc == 'p4stm':
+            try:
+                import p4stm
+                self.Stm = p4stm.Stm
+                import pyublas # not explicitly used--but makes converters available
+            except ImportError:
+                gm.append("var.stCalc is set to 'p4stm', but I could not import p4stm or pyublas.  Make sure they are installed.")
                 raise Glitch, gm
-                
+
 
 
 
@@ -1474,7 +1597,7 @@ class STMcmc(object):
         # the Stm object does not pickle, and this commented-out bit does not fix it.  
         savedStms = []
         savedBigTrs = []
-        if self.usingP4stmModule:
+        if var.stCalc == 'p4stm':
             for chNum in range(self.nChains):
                 ch = self.chains[chNum]
                 savedStms.append(ch.stm)
@@ -1495,7 +1618,7 @@ class STMcmc(object):
         cPickle.dump(theCopy, f, 1)
         f.close()
 
-        if self.usingP4stmModule:
+        if var.stCalc == 'p4stm':
             for chNum in range(self.nChains):
                 ch = self.chains[chNum]
                 ch.stm = savedStms[chNum]
@@ -1760,8 +1883,8 @@ class STMcmcCheckPointReader(object):
     def compareSplitsAll(self):
         nM = len(self.mm)
         nItems = ((nM * nM) - nM)/2
-        results = numpy.zeros((nM, nM), numpy.float)
-        vect = numpy.zeros(nItems, numpy.float)
+        results = np.zeros((nM, nM), np.float)
+        vect = np.zeros(nItems, np.float)
         vCounter = 0
         for mNum1 in range(1, nM):
             for mNum2 in range(mNum1):
