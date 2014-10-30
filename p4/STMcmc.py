@@ -560,7 +560,7 @@ class STMcmc(object):
 
     It is based on the Steel and Rodrigo 2008 description of a
     likelihood model, "Maximum likelihood supertrees"
-    Syst. Biol. 57(2):243–250, 2008.  It does not have the corrections
+    Syst. Biol. 57(2):243--250, 2008.  It does not have the corrections
     described in the Bryant and Steel paper "Computing the
     distribution of a tree metric" in IEEE/ACM Transactions on
     computational biology and bioinformatics, VOL. 6, 2009.
