@@ -16,8 +16,8 @@ suspect the rest of libboost is not needed -- I put it on my Ubuntu
 box for other reasons, and it did not hurt.
 
 Make sure you have Python.h in your include path.  You probably have
-that if you installed Python from source, or from MacPorts, or if you
-installed python-dev.
+that if you installed Python from source, from MacPorts, from
+HomeBrew, or if you installed python-dev.
 
 ====================================================================
 
@@ -28,29 +28,26 @@ Thanks muchly to Anders Kabell Kristensen (no longer at Aarhus, but
 see http://www.cs.au.dk/~dalko/thesis/) and Jesper Nielsen for help
 with the code.
 
-Get the zip file, qdist-src-1.0.zip, from http://birc.au.dk/software/qdist/
+Get the zip file, qdist-src-2.0.zip, from http://birc.au.dk/software/qdist/
+(http://users-birc.au.dk/cstorm/software/qdist/qdist-src-2.0.zip)
 
 Unzip it here in this directory, where the scqdistmodule.cpp and
-setup.py are needed.
+setup.py are needed.  It does not make a directory -- it explodes in a
+mess of files in this directory.  That is what you want, this time.
 
-Modify Matrix.hpp, near the top, to read
-//#include"include_blas.hpp"
-extern "C" {
-#include <cblas.h>
-}
+Next step is to do "cmake ." (note the dot) on it, in order to make
+the file "include_blas.hpp", which is needed to include in Matrix.hpp.
 
-You may need to use <blas.h> above rather than <cblas.h>, but probably
-not.  On my Ubuntu box it wants cblas.h even tho the lib is libblas,
-not libcblas.
-
-Do this ---
+Based on the main.cpp in the qdist src, I have made a file
+scqdistmodule.cpp, to make a Python module.  Do this ---
 
 python setup.py build_ext --inplace
 
 and pay attention to any error messages as they fly by.  (Warnings are
 usually ok)
 
-It might work.  If it does, you will get a module, scqdist.so
+It might work.  If it does, you will get a module, scqdist.so, which
+you can put in your Python path.  Make sure that you can import it.
 
 If it does not work, you may need to adjust your setup.py.  You may
 need to remove the atlas lib from the list (I needed to do that on
@@ -58,7 +55,7 @@ Ubuntu), or you may need to uncomment and adjust the include_dirs and
 library_dirs.  You may need to change "cblas" to "blas" (I needed to
 do that on Ubuntu).  Try again until you get a working scqdist.so that
 loads without error (ie in Python or p4, do "import scqdist" in that
-directory), and then move that into your python path.
+directory), and then move that into your Python path.
 
 Use it like this ---
 # tsA and tsB are two newick trees as Python strings.

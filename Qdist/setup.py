@@ -5,8 +5,6 @@ import glob
 mySources = glob.glob('*.cpp')
 toRemove = [
     'main.cpp',
-    'cubic-main.cpp',
-    'quartic-main.cpp',
     'testMatrix.cpp',
     'testQDist.cpp'
     ]
@@ -20,5 +18,6 @@ setup(name="PackageName",
                     #include_dirs = ["/opt/local/include"],
                     #library_dirs = ["/opt/local/lib"],
                     # Might not need atlas?  Might be blas rather than cblas?
-                    libraries = ["cblas", "atlas", "boost_python"]) 
+                    # libraries = ["cblas", "atlas", "boost_python"]) 
+                    libraries = ["cblas", "boost_python"])             # this worked on my mac
     ])
