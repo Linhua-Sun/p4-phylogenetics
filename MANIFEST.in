@@ -1,0 +1,18 @@
+include MANIFEST.in
+include INSTALL
+include README
+include COPYING
+#include CHANGES
+include Pf/*.h
+include bin/p4
+recursive-include share *
+prune share/doc-src
+# This next line was trial and error.  Seems to work.  Why 'share'?
+recursive-exclude share .svn .svn/* .svn/*/* 
+
+
+
+
+
+
+

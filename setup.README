@@ -1,0 +1,37 @@
+# The user does this, to install:
+#    python setup.py install
+# which should build it fine.  However, when it comes to installing
+# it, the default install location might be /usr/local or something
+# like that, and JoeUser is not allowed to write to that.  So it might
+# fail at that point.
+
+# You could do the above install line as root, or sudo it, but a
+# problem with that is that all the build files might then be owned by
+# root, and JoeUser can't even delete them!  So an obvious strategy is
+# to build it as JoeUser and then install it as root (or sudo).
+
+# To just build it, without installing it,
+#    python setup.py build
+# then install it by sudo
+#    sudo python setup.py install
+
+# You can make a binary rpm by doing this:
+#    python setup.py bdist_rpm
+# You can find out what distribution formats are available by running
+#    python setup.py bdist --help-formats
+
+# To get help,
+#    python setup.py --help
+# To build
+#    python setup.py build
+# For build help
+#    python setup.py build --help
+
+# NOTE if any files or examples have been added, 
+# I should remove the MANIFEST, to be rebuilt.  
+# Remove it anyway to be safe.
+
+
+rm MANIFEST
+python setup.py sdist
+

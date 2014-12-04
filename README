@@ -1,0 +1,38 @@
+p4
+==
+
+P4 does Bayesian and maximum likelihood phylogenetic analyses on
+molecular sequences.  It's specialty is that you can use heterogeneous
+models, where the model parameters can differ in different parts of
+the tree, or over different parts of the data.
+
+The user interface for p4 is the Python language.  That means that p4
+comes with all the abilities of a high-level object-oriented
+programming language.  This is a Good Thing.
+
+I have successfully installed it on linux and on Mac OS X.
+
+Thanks to Dave Swofford and Ziheng Yang for some code.
+
+Many of the ideas were influenced by or stolen from the excellent
+MrBayes, and thanks are given to the authors, John Huelsenbeck and
+Fredrik Ronquist.
+
+Getting Started
+---------------
+
+To install it, see the file INSTALL.rst
+
+Once you have it installed, call it from your command line, eg
+
+yourShellPrompt% p4
+
+and read the splash screen.  Much of the documentation at http://p4.nhm.ac.uk is from the doc strings in the source, and you can as usual get at that via Python help() within p4.
+
+There are examples (and other documentation) in the share directory in the source, as well as the source for the html docs, should you want to build your own sphinx webdocs.  
+
+
+Citation
+--------
+Foster, P.G. 2004.  Modeling compositional heterogeneity.  Syst. Biol. 53: 485-495.
+
