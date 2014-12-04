@@ -2659,62 +2659,6 @@ class Tree(object):
             gm.append('Weighted tree distance calculations do not work on bi-rooted trees.')
             raise Glitch, gm
 
-        # Tobias' old stuff.  The quartet distances did not give correct distances.  Not clear about the triplet distances.
-        # #        Building a triplet set before the splitset is build to avoid doing extra work
-        #         if metric == 'triplet':
-        #             from p4.LeafSupport import TripletStripper
-        # #            Create at stripper to get triplets from trees
-        #             tripletStripper = TripletStripper()
-        # #            Strip the triplets from one self
-        #             if not hasattr(self, 'triplets'):
-        #                 self.triplets = tripletStripper.getQuartetSet(True, self)
-
-        #             if not hasattr(tree2, 'triplets'):
-        # #            Strip triplets from the other tree
-        #                 tree2.triplets = tripletStripper.getQuartetSet(True, tree2)
-
-        # #            The difference between the triplet sets
-        # #            if both trees have the same set of taxa this should be a decent measure
-        # #            otherwise it is of questionalbe use
-        #             tripletDifference = len(self.triplets.symmetric_difference(tree2.triplets))
-
-        # #            return quartetDifference, len(self.quartets) + len(tree2.quartets)
-        #             return tripletDifference
-
-        # #        Building quartet sets before the splitset is built to avoid extra work
-        #         if metric == 'quartet':
-        #             from p4.LeafSupport import QuartetStripper
-        # #            Create a stripper to get quartets from trees
-        #             quartetStripper = QuartetStripper()
-
-        # #            Strip quartets from self            
-        #             if not hasattr(self, 'quartets'):
-        #                 self.quartets = quartetStripper.getQuartetSet(True, self)
-
-        # #            Strip quartets from tree2
-        #             if not hasattr(tree2, 'quartets'):
-        #                 tree2.quartets = quartetStripper.getQuartetSet(True, tree2)
-
-        # #            The symmetric difference between the quartet sets
-        # #            if both trees have the same set of taxa this should be a resonable distance measure
-        # #            if not the usefullness is questionalbe.
-        #             #print len(self.quartets)
-        #             #print len(tree2.quartets)
-        #             if 0:
-        #                 selfHasButTree2DoesNot = self.quartets.difference(tree2.quartets)
-        #                 tree2HasButSelfDoesNot = tree2.quartets.difference(self.quartets)
-        #                 print len(selfHasButTree2DoesNot),len(tree2HasButSelfDoesNot)
-
-        #             quartetDifference = len(self.quartets.symmetric_difference(tree2.quartets))
-
-        # #            return quartetDifference, len(self.quartets) + len(tree2.quartets)
-        #             return quartetDifference
-            
-        # if metric == 'thquartet':
-        #     from p4.QuartetDistance import QuartetDistance
-        #     qd = QuartetDistance([self, tree2])
-        #     ret = qd.calcQuartetDistance()
-        #     return ret
 
         # I might be doing a lot of these, and I don't want to make
         # splitKeys and make the splitKeys set over and over again.
@@ -2736,10 +2680,7 @@ class Tree(object):
             # Symmetric difference.  The symmetric_difference method
             # returns all elements that are in exactly one of the sets.
             theSD = len(self.splitKeySet.symmetric_difference(tree2.splitKeySet))
-            #del(self.splitKeyHash)
-            #del(tree2.splitKeyHash)
             return theSD
-#            return theSD, len(self.splitKeySet) + len(tree2.splitKeySet)
 
         # The difference method returns the difference of two sets as
         # a new Set.  I.e. all elements that are in self and not in
