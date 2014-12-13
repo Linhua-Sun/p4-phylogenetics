@@ -197,7 +197,7 @@ class NexusSets(object):
         self.charPartitionLowNames = []
         self.charPartition = None
         #self.alignment = None
-        self.nChar = None
+        self.aligNChar = None
         self.taxNames = []
         self.nTax = None
         self.predefinedCharSetLowNames = ['constant', 'gapped']
@@ -428,7 +428,7 @@ class NexusSets(object):
         cs.triplets = copy.deepcopy(theCS.triplets) # its a list of lists
         cs.tokens = theCS.tokens[:]
         cs.mask = theCS.mask
-        cs.nChar = theCS.nChar
+        cs.aligNChar = theCS.aligNChar
 
 class TaxOrCharSet(object):
     def __init__(self, theNexusSets):
@@ -457,8 +457,8 @@ class TaxOrCharSet(object):
     def dump(self):
         print "                   %s %i" % (self.className, self.num)
         print "                                   name: %s" % self.name
-        if hasattr(self, 'nChar'):
-            print "                                  nChar: %s" % self.nChar
+        if hasattr(self, 'aligNChar'):
+            print "                              aligNChar: %s" % self.aligNChar
         print "                                 format: %s" % self.format
         if hasattr(self, 'useTaxNames'):
             print "                            useTaxNames: %s" % self.useTaxNames
@@ -702,7 +702,7 @@ class TaxOrCharSet(object):
                 raise Glitch, gm
 
             if self.className == 'CharSet':
-                thisMaskLen = self.nChar
+                thisMaskLen = self.aligNChar
                 existingSetNames = self.nexusSets.charSetLowNames
                 existingSets = self.nexusSets.charSets
                 theTriplets = self.triplets
@@ -921,12 +921,16 @@ class CharSet(TaxOrCharSet):
     def __init__(self, theNexusSets):
         TaxOrCharSet.__init__(self, theNexusSets)
         self.className = 'CharSet'
-        self.nChar = None
+        self.aligNChar = None
 
-    def setNChar(self, nChar):
-        gm =['CharSet.setNChar()']
-        #print "CharSet name=%s, format=%s, nChar=%i" % (self.name, self.format, nChar)
-        self.nChar = nChar
+    def getNChar(self):
+        self.setMask()
+        return self.mask.count('1')
+
+    def setAligNChar(self, aligNChar):
+        gm =['CharSet.setAligNChar()']
+        #print "CharSet name=%s, format=%s, aligNChar=%i" % (self.name, self.format, aligNChar)
+        self.aligNChar = aligNChar
         if self.format == 'standard':
             for aTriplet in self.triplets:
                 first = aTriplet[0]
@@ -934,12 +938,12 @@ class CharSet(TaxOrCharSet):
                 third = aTriplet[2]
                 if first and not second: # its a single
                     if type(first) == type(1):
-                        if first > 0 and first <= self.nChar:
+                        if first > 0 and first <= self.aligNChar:
                             pass
                         else:
                             gm.append("Charset '%s' definition" % self.name)
                             gm.append("Charset definition element '%s' is out of range" % first)
-                            gm.append("(nChar = %i)" % self.nChar)
+                            gm.append("(aligNChar = %i)" % self.aligNChar)
                             raise Glitch, gm
                         pass
                 elif first and second:  # its a range
@@ -950,7 +954,7 @@ class CharSet(TaxOrCharSet):
                         gm.append("Can't parse definition element '%s'" % first)
                         raise Glitch, gm
                     if second == '.':
-                        fin = self.nChar
+                        fin = self.aligNChar
                     else:
                         try:
                             fin = int(second)
@@ -968,10 +972,10 @@ class CharSet(TaxOrCharSet):
         elif self.format == 'vector':
             #print "charset %s, vector format %s, mask %s" % (self.name, self.format, self.mask)
             if self.mask:
-                if len(self.mask) == self.nChar:
+                if len(self.mask) == self.aligNChar:
                     pass
                 else:
-                    gm.append("len(self.mask) is %i, but nChar is %i" % (len(self.mask), self.nChar))
+                    gm.append("len(self.mask) is %i, but aligNChar is %i" % (len(self.mask), self.aligNChar))
                     raise Glitch, gm
         else:
             gm.append("bad format %s" % self.format)
@@ -1105,7 +1109,6 @@ class CharPartitionSubset(object):
 class CharPartition(object):
     def __init__(self, theNexusSets):
         self.nexusSets = theNexusSets
-        #self.nChar = None
         self.name = None
         self.lowName = None
         self.tokens = []
@@ -1229,15 +1232,7 @@ class CharPartition(object):
 
         gm = ['CharPartition.setSubsetMasks()']
 
-        #if self.nexusSets.alignment.excludeDelete:
-        #    self.nChar = self.fnexusSets.alignment.excludeDelete.length
-        #else:
-        #    self.nChar = self.nexusSets.alignment.length
-        assert self.nexusSets.nChar
-
-        #existingCharSetNames = []
-        #for cs in theNexusSets.charSets:
-        #    existingCharSetNames.append(cs.lowName)
+        assert self.nexusSets.aligNChar
 
         # Make a list of triplets representing eg 23-87\3
         # first item = 23, second item = 87, third = 3
@@ -1372,7 +1367,7 @@ class CharPartition(object):
                 #sys.exit()
 
 
-            aSubset.mask = array.array('c', self.nexusSets.nChar * '0')
+            aSubset.mask = array.array('c', self.nexusSets.aligNChar * '0')
 
             for aTriplet in aSubset.triplets:
                 #print "setSubsetMasks()  Looking at triplet '%s'" % aTriplet
@@ -1389,7 +1384,7 @@ class CharPartition(object):
                 if first and not second: # its a single
                     #print "Got single: %s" % first
                     if lowFirst == 'all':
-                        for i in range(self.nexusSets.nChar):
+                        for i in range(self.nexusSets.aligNChar):
                             aSubset.mask[i] = '1'
                     elif lowFirst in self.nexusSets.predefinedCharSetLowNames:
                         theCS = None
@@ -1399,7 +1394,7 @@ class CharPartition(object):
                             theCS = self.nexusSets.gapped
                         assert theCS
                         assert theCS.mask
-                        for j in range(self.nexusSets.nChar):
+                        for j in range(self.nexusSets.aligNChar):
                             if theCS.mask[j] == '1':
                                 aSubset.mask[j] = '1'
                     elif lowFirst in self.nexusSets.charSetLowNames:
@@ -1410,29 +1405,29 @@ class CharPartition(object):
                                 break
                         assert theCS
                         assert theCS.mask
-                        for j in range(self.nexusSets.nChar):
+                        for j in range(self.nexusSets.aligNChar):
                             if theCS.mask[j] == '1':
                                 aSubset.mask[j] = '1'
                     elif first == '.': # Its legit to use this as a single char.
                         aSubset.mask[-1] = '1'
                     elif type(first) == type(1):
-                        if first > 0 and first <= self.nexusSets.nChar:
+                        if first > 0 and first <= self.nexusSets.aligNChar:
                             aSubset.mask[first - 1] = '1'
                         else:
                             gm.append("CharPartition '%s' definition" % self.name)
                             gm.append("Subset '%s' definition" % aSubset.name)
                             gm.append("Charset definition element '%s' is out of range" % first)
-                            gm.append("(nChar = %i)" % self.nexusSets.nChar)
+                            gm.append("(aligNChar = %i)" % self.nexusSets.aligNChar)
                             raise Glitch, gm
                     elif lowFirst == 'remainder':
                         #print "Got first == remainder"
-                        for i in range(self.nexusSets.nChar):
+                        for i in range(self.nexusSets.aligNChar):
                             aSubset.mask[i] = '1'
                         #print "Got new aSubset.mask = %s" % aSubset.mask
                         for ss in self.subsets[:-1]:
                             if ss.mask:
                                 #print "Previous mask: %s" % ss.mask
-                                for j in range(self.nexusSets.nChar):
+                                for j in range(self.nexusSets.aligNChar):
                                     if ss.mask[j] == '1':
                                         aSubset.mask[j] = '0'
                             else:
@@ -1488,7 +1483,7 @@ class CharPartition(object):
     def checkForOverlaps(self):
         gm = ['CharParitition.checkForOverlaps()']
         unspanned = 0
-        for i in range(self.nexusSets.nChar):
+        for i in range(self.nexusSets.aligNChar):
             sum = 0
             for aSubset in self.subsets:
                 if aSubset.mask[i] == '1':
@@ -1527,12 +1522,12 @@ class CharPartition(object):
         flob.write(';\n')
 
     def mask(self):
-        if not self.nexusSets.nChar:
-            self.nexusSets.nChar = self.theNexusSets.nChar
+        if not self.nexusSets.aligNChar:
+            self.nexusSets.aligNChar = self.theNexusSets.aligNChar
         self.setSubsetMasks()
         import array
-        m = array.array('c', self.nexusSets.nChar * '0')
-        for i in range(self.nexusSets.nChar):
+        m = array.array('c', self.nexusSets.aligNChar * '0')
+        for i in range(self.nexusSets.aligNChar):
             for aSubset in self.subsets:
                 if aSubset.mask[i] == '1':
                     m[i] = '1'
