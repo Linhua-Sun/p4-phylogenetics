@@ -2234,10 +2234,11 @@ def unPickleSTMcmc(runNum, verbose=True):
     m = cPickle.load(f)
     f.close()
 
-    if m.usingP4stmModule:
+    if m.stRFCalc == 'fastReducedRF':
+        import pyublas      # needed
         for chNum in range(m.nChains):
             ch = m.chains[chNum]
-            ch.startStm()
+            ch.startFrrf()
         
     return m
 

@@ -11,14 +11,45 @@ from Constraints import Constraints
 import datetime
 import bitarray
 
-# if var.stCalc == 'p4stm':
-#     haveLoadedP4stm = False
-#     try:
-#         import p4stm
-#         import pyublas # not explicitly used--but makes converters available
-#         haveLoadedP4stm = True
-#     except ImportError:
-#         pass
+
+
+def bForN(n):
+    prod = 1
+    if n > 3:
+        for k in range(4, n + 1):
+            prod *= ((2 * k) - 5)
+    return prod
+        
+
+def BS2009_Eqn30_ZTApprox(n, beta, cT):
+    myLambda = cT/(2.0*n)
+    tester = 0.5 * math.log((n - 3.)/myLambda)
+
+    epsilon = math.exp(-2. * beta)
+    bigANEpsilon = 1 + (((2. * n) - 3.) * epsilon) + (2. * ((n * n) - (4. * n) - 6.) * epsilon * epsilon)
+    termA = bigANEpsilon + 6 * cT * epsilon * epsilon
+
+    if beta < tester:
+        termB = math.exp(-(2. * beta) * (n - 3.) + (myLambda * (math.exp(2. * beta) - 1.)))
+        termB *= bForN(n)
+        if termA > termB:
+            return termA
+        else:
+            return termB
+    else:
+        return termA
+
+def popcountA(k, nBits):
+    count = 0
+    for i in range(nBits):
+        tester = 1L << i
+        if tester > k:
+            return count
+        if tester & k:
+            count += 1
+    return count
+
+    
 
 
 def bitReduce(bk, txBits, lLen, sLen, allOnes):
@@ -65,29 +96,42 @@ if 0: # test bitReduce
     #     popcount 2
 
 
-def maskedSymmetricDifference(skk, skkSet, taxBits, longLen, shortLen, allOnes):
+def maskedSymmetricDifference(skk, skSet, taxBits, longLen, shortLen, allOnes):
     if 0:
-        print "skk (from the current tree)"
+        print "-" * 50
+        print "skk (skk_ppy1 from the current supertree)"
         for sk in skk:
             print func.getSplitStringFromKey(sk, longLen)
-        print "skkSet (from input tree)"
-        for sk in skkSet:
+        print "skSet (from input tree)"
+        for sk in skSet:
             print func.getSplitStringFromKey(sk, shortLen)
         print "taxBits:", taxBits, func.getSplitStringFromKey(taxBits, longLen)
-            
+
     newSkk = []
     for sk in skk:
         reducedSk, popcount = bitReduce(sk, taxBits, longLen, shortLen, allOnes)
-        #print "taxBits: %s  " % func.getSplitStringFromKey(taxBits, longLen),
-        #print "%4i %s  " % (sk, func.getSplitStringFromKey(sk, longLen)),
-        #print "%4i %s , %i" % (reducedSk, func.getSplitStringFromKey(reducedSk, shortLen), popcount)
-        if popcount in [0, 1, shortLen - 1]:
+        if 0:
+            print "taxBits: %s  " % func.getSplitStringFromKey(taxBits, longLen),
+            print "%4i %s  " % (sk, func.getSplitStringFromKey(sk, longLen)),
+            print "%4i %s  %i" % (reducedSk, func.getSplitStringFromKey(reducedSk, shortLen), popcount)
+        if popcount <= 1 or popcount >= (shortLen - 1):
             pass
         else:
             newSkk.append(reducedSk)
     newSkkSet = set(newSkk)
-    #print newSkkSet, skkSet
-    return len(newSkkSet.symmetric_difference(skkSet))
+    #print newSkkSet, skSet
+    #print "reduced supertree splits =  newSkkSet = %s" % newSkkSet
+    ret = len(newSkkSet.symmetric_difference(skSet))
+    #print "symmetric difference %i" % ret
+    nCherries = 0
+    for sk in newSkkSet:
+        popcount = popcountA(sk, shortLen)
+        if popcount == 2:
+            nCherries += 1
+        if popcount == (shortLen - 2):  # not "elif", because they might both be True
+            nCherries += 1
+    #print "nCherries %i" % nCherries 
+    return ret, nCherries
 
 def slowQuartetDistance(st, inputTree):
     dst = st.dupe()
@@ -104,6 +148,8 @@ def slowQuartetDistance(st, inputTree):
 class STChain(object):
 
     def __init__(self, aSTMcmc):
+        gm = ['STChain.__init__()']
+
         self.stMcmc = aSTMcmc
         self.tempNum = -1 # 'temp'erature, not 'temp'orary
 
@@ -113,20 +159,27 @@ class STChain(object):
         self.logProposalRatio = 0.0
         self.logPriorRatio = 0.0
 
-        if var.stCalc == 'native':
-            self.getTreeLogLike(self.curTree)  
-            self.getTreeLogLike(self.propTree)
+        self.frrf = None
 
-        self.stm = None
-        if var.stCalc == 'p4stm':
-            self.startStm()
-            self.p4stm_getTreeLogLike()
-            self.curTree.logLike = self.propTree.logLike
+        if self.stMcmc.modelName.startswith('SR2008_rf'):
+            self.curTree.beta = self.stMcmc.beta
+            self.propTree.beta = self.stMcmc.beta
 
-        if var.stCalc == 'bitarray':
-            self.setupBitarrayCalcs()
-            self.getTreeLogLike_bitarray()
+            if self.stMcmc.stRFCalc == 'purePython1':
+                self.getTreeLogLike_ppy1()  
+                
+            elif self.stMcmc.stRFCalc == 'fastReducedRF':
+                self.startFrrf()
+                self.getTreeLogLike_fastReducedRF()
+
+            elif self.stMcmc.stRFCalc == 'bitarray':
+                self.setupBitarrayCalcs()
+                self.getTreeLogLike_bitarray()
+            
             self.curTree.logLike = self.propTree.logLike
+        else:
+            gm.append('Unknown modelName %s' % self.stMcmc.modelName)
+            raise Glitch, gm
 
         #print "STChain init()"
         #self.curTree.draw()
@@ -155,6 +208,8 @@ class STChain(object):
             n.ss.spl = n.stSplitKey
             n.ss.spl2 = n.ss.spl.copy()
             n.ss.spl2.invert()
+        # This next one will be empty, not used immediately, but will
+        # be used after supertree rearrangements.
         self.propTree.root.ss = BigTSplitStuff()
 
     def refreshBitarrayPropTree(self):
@@ -178,10 +233,10 @@ class STChain(object):
             n.ss.spl2.invert()
 
 
-    def startStm(self):
-        # if using var.stCalc= 'p4stm'
-        self.stm = self.stMcmc.Stm(len(self.stMcmc.taxNames))
-        self.bigTr = self.stm.setBigT(len(self.propTree.nodes), self.propTree.nTax, self.propTree.postOrder)
+    def startFrrf(self):
+        # if using self.stMcmc.stRFCalc= 'fastReducedRF'
+        self.frrf = self.stMcmc.Frrf(len(self.stMcmc.taxNames))
+        self.bigTr = self.frrf.setBigT(len(self.propTree.nodes), self.propTree.nTax, self.propTree.postOrder)
 
         for n in self.propTree.nodes:
             if n.parent:
@@ -193,10 +248,9 @@ class STChain(object):
             if n.sibling:
                 self.bigTr.setSibling(n.nodeNum, n.sibling.nodeNum)
 
-        #stm.dump()
         if 1:
             for t in self.stMcmc.trees:
-                tr = self.stm.appendInTree(len(t.nodes), t.nTax, t.postOrder, t.beta)
+                tr = self.frrf.appendInTree(len(t.nodes), t.nTax, t.postOrder)
                 for n in t.nodes:
                     if n.parent:
                         tr.setParent(n.nodeNum, n.parent.nodeNum)
@@ -206,28 +260,49 @@ class STChain(object):
                         tr.setNodeTaxNum(n.nodeNum, self.stMcmc.taxNames.index(n.name))
                     if n.sibling:
                         tr.setSibling(n.nodeNum, n.sibling.nodeNum)
-        self.stm.setInTreeTaxBits()
-        self.stm.setInTreeInternalBits()
-        self.stm.maybeFlipInTreeBits()
-        self.stm.setBigTInternalBits()
+        self.frrf.setInTreeTaxBits()
+        self.frrf.setInTreeInternalBits()
+        self.frrf.maybeFlipInTreeBits()
+        self.frrf.setBigTInternalBits()
+        #self.frrf.dump()
         
 
-    def getTreeLogLike(self, aTree):
-        aTree.makeSplitKeys()
-        aTree.skk = [n.br.splitKey for n in aTree.iterInternalsNoRoot()]
-        aTree.logLike = 0.0
+    def getTreeLogLike_ppy1(self):
+        gm = ['STChain.getTreeLogLike_pp1']
+        self.propTree.makeSplitKeys()
+        self.propTree.skk = [n.br.splitKey for n in self.propTree.iterInternalsNoRoot()]
+        self.propTree.logLike = 0.0
         for t in self.stMcmc.trees:
-            if self.stMcmc.dMetric == 'sd':
-                thisDist = t.beta *  maskedSymmetricDifference(aTree.skk, t.skSet, t.taxBits, self.stMcmc.nTax, t.nTax, t.allOnes)
-                #print "native: thisDist %f" % thisDist
-            elif self.stMcmc.dMetric == 'scqdist':
-                thisDist = t.beta * slowQuartetDistance(self.propTree, t)
-            else:
-                raise Glitch, "STChain.getTreeLogLike() unknown metric '%s'" % self.stMcmc.dMetric
-            aTree.logLike -= thisDist
 
-    def p4stm_getTreeLogLike(self):
-        self.stm.wipeBigTPointers()
+            # Get the distance
+            thisDist = None
+            if self.stMcmc.modelName.startswith('SR2008_rf'):
+                thisDist, nCherries = maskedSymmetricDifference(self.propTree.skk, t.skSet, 
+                                              t.taxBits, self.stMcmc.nTax, t.nTax, t.allOnes)
+            else:
+                raise Glitch, "STChain.getTreeLogLike_ppy1() unknown model '%s'" % self.stMcmc.modelName
+
+            # Now multiply by beta, and do approximate Z_T
+            assert thisDist != None
+            beta_distance = self.propTree.beta * thisDist
+            if self.stMcmc.modelName == 'SR2008_rf_ia':
+                self.propTree.logLike -= beta_distance
+            elif self.stMcmc.modelName.startswith('SR2008_rf_aZ'):
+                approxZT = BS2009_Eqn30_ZTApprox(t.nTax, self.propTree.beta, nCherries)
+                self.propTree.logLike -= math.log(approxZT)
+                self.propTree.logLike -= beta_distance
+            else:
+                gm.append("Unknown modelName %s" % self.stMcmc.modelName)
+                raise Glitch, gm
+
+
+    def getTreeLogLike_fastReducedRF(self):
+        slowCheck = False
+        if slowCheck:
+            self.getTreeLogLike_ppy1(self.propTree)
+            savedLogLike = self.propTree.logLike
+
+        self.frrf.wipeBigTPointers()
         for n in self.propTree.nodes:
             if n.parent:
                 self.bigTr.setParent(n.nodeNum, n.parent.nodeNum)
@@ -237,14 +312,33 @@ class STChain(object):
             #    bigTr.setNodeTaxNum(n.nodeNum, tNames.index(n.name))
             if n.sibling:
                 self.bigTr.setSibling(n.nodeNum, n.sibling.nodeNum)
-        self.stm.setBigTInternalBits()
-        sd = self.stm.getSymmDiff()
-        self.propTree.logLike = -sd
+        self.frrf.setBigTInternalBits()
+        if self.stMcmc.modelName == 'SR2008_rf_ia':
+            sd = self.frrf.getSymmDiff()
+            self.propTree.logLike = -sd * self.propTree.beta
+        elif self.stMcmc.modelName.startswith('SR2008_rf_aZ'):
+            self.propTree.logLike = self.frrf.getLogLike(self.propTree.beta)
+        if slowCheck:
+            if self.propTree.logLike != savedLogLike:
+                gm = ['STChain.getTreeLogLike_fastReducedRF()']
+                gm.append("Slow likelihood %f" % savedLogLike)
+                gm.append("Fast likelihood %f" % self.propTree.logLike)
+                raise Glitch, gm
 
+                      
     def getTreeLogLike_bitarray(self):
         self.propTree.logLike = 0.0
+        slowCheck = False
+        if slowCheck:
+            self.propTree.makeSplitKeys()
+            self.propTree.skk = [n.br.splitKey for n in self.propTree.iterInternalsNoRoot()]
         for t in self.stMcmc.trees:
-            splSet = set()
+            if 0:
+                print "-" * 50
+                t.draw()
+                print "baTaxBits %s" % t.baTaxBits
+                print "firstTax at %i" % t.firstTax
+            usables = []     # splitStuff objects with onesCount >= 2 and <= t.nTax = 2
             # No need to consider (masked) splits with less than two
             # 1s or more than nTax - 2 1s.  The nTax depends on the
             # input tree.
@@ -256,16 +350,53 @@ class STChain(object):
                 else:
                     n.ss.theSpl = n.ss.spl2
                 n.ss.maskedSplitWithTheFirstTaxOne = n.ss.theSpl & t.baTaxBits
-                # n.ss.onesCount = n.ss.maskedSplitWithTheFirstTaxOne.count()
-                # if n.ss.onesCount >= 2 and n.ss.onesCount <= upperGood:
-                #     splSet.add(n.ss.maskedSplitWithTheFirstTaxOne.tobytes())
-            #thisDist = t.beta * len(splSet.symmetric_difference(t.splSet))
-            thisDist = 2.0
-            #print "ba thisDist %f" % thisDist
-            self.propTree.logLike -= thisDist
-
-        
-
+                n.ss.onesCount = n.ss.maskedSplitWithTheFirstTaxOne.count()
+                if 0:
+                    print "bigT node %i" % n.nodeNum
+                    print "  theSpl is %s" % n.ss.theSpl
+                    print "  maskedSplitWithTheFirstTaxOne %s" %  n.ss.maskedSplitWithTheFirstTaxOne
+                    print "  onesCount %i" % n.ss.onesCount
+                    if n.ss.onesCount >= 2 and n.ss.onesCount <= upperGood:
+                        print "    -> used"
+                    else:
+                        print "    -> not used"
+                if n.ss.onesCount >= 2 and n.ss.onesCount <= upperGood:
+                    usables.append(n.ss)
+            usablesDict = {}
+            for usable in usables:
+                usable.bytes = usable.maskedSplitWithTheFirstTaxOne.tobytes()
+                usablesDict[usable.bytes] = usable
+            splSet = set()   # bytes, for RF calculation
+            for usable in usables:
+                # splSet.add(n.ss.maskedSplitWithTheFirstTaxOne.tobytes())
+                splSet.add(usable.bytes)
+            thisBaRF =  len(splSet.symmetric_difference(t.splSet))
+            if slowCheck:  # with purePython1
+                thisPPyRF, thisPPyNCherries = maskedSymmetricDifference(self.propTree.skk, t.skSet, 
+                                                      t.taxBits, self.stMcmc.nTax, t.nTax, t.allOnes)
+                if thisBaRF != thisPPyRF:
+                    raise Glitch, "bitarray and purePython1 RF calcs differ."
+            beta_distance = self.propTree.beta * thisBaRF
+            if self.stMcmc.modelName == 'SR2008_rf_ia':
+                self.propTree.logLike -= beta_distance
+            elif self.stMcmc.modelName.startswith('SR2008_rf_aZ'):
+                nCherries = 0
+                for ba in splSet:
+                    theSS = usablesDict[ba]
+                    #theSS.dump()
+                    if theSS.onesCount == 2:
+                        nCherries += 1
+                    if theSS.onesCount == upperGood:
+                        nCherries += 1
+                if slowCheck:
+                    if nCherries != thisPPyNCherries:
+                        raise Glitch, "bitarray and purePython1 nCherries calcs differ."
+                approxZT = BS2009_Eqn30_ZTApprox(t.nTax, self.propTree.beta, nCherries)
+                self.propTree.logLike -= math.log(approxZT)
+                self.propTree.logLike -= beta_distance
+            else:
+                gm.append("Unknown model %s" % self.stMcmc.modelName)
+                raise Glitch, gm
 
         
         
@@ -283,7 +414,6 @@ class STChain(object):
                 if not self.propTree.preAndPostOrderAreValid:
                     self.propTree.setPreAndPostOrder()
         elif theProposal.name == 'spr':
-            #self.proposeNni(theProposal)
             self.propTree.randomSpr()
             if theProposal.doAbort:
                 pass
@@ -291,6 +421,28 @@ class STChain(object):
                 if not self.propTree.preAndPostOrderAreValid:
                     self.propTree.setPreAndPostOrder()
 
+        elif theProposal.name == 'SR2008beta_uniform':
+            mt = self.propTree.beta
+
+            # Slider proposal
+            mt += (random.random() - 0.5) * theProposal.tuning
+
+            # Linear reflect
+            isGood = False
+            myMIN = 1.e-10
+            myMAX = 1.e+10
+            while not isGood:
+                if mt < myMIN:
+                    mt = (myMIN - mt) + myMIN
+                elif mt > myMAX:
+                    mt = myMAX - (mt - myMAX)
+                else:
+                    isGood = True
+            self.propTree.beta = mt
+            self.logProposalRatio = 0.0
+            self.logPriorRatio = 0.0
+
+            pass
         # elif theProposal.name == 'polytomy':
         #     self.proposePolytomy(theProposal)
         #     if not self.propTree.preAndPostOrderAreValid:
@@ -306,13 +458,18 @@ class STChain(object):
             return 0.0
         else:
             #print "...about to calculate the likelihood of the propTree."
-            if var.stCalc == 'p4stm':
-                self.p4stm_getTreeLogLike()
-            elif var.stCalc == 'native':
-                self.getTreeLogLike(self.propTree)
-            elif var.stCalc == 'bitarray':
-                self.refreshBitarrayPropTree()
-                self.getTreeLogLike_bitarray()
+            if self.stMcmc.modelName.startswith('SR2008_rf'):
+                if self.stMcmc.stRFCalc == 'fastReducedRF':
+                    self.getTreeLogLike_fastReducedRF()
+                elif self.stMcmc.stRFCalc == 'purePython1':
+                    self.getTreeLogLike_ppy1()
+                elif self.stMcmc.stRFCalc == 'bitarray':
+                    self.refreshBitarrayPropTree()
+                    self.getTreeLogLike_bitarray()
+            else:
+                gm.append('Unknown model %s' % self.stMcmc.modelName)
+                raise Glitch, gm
+
             #print "propTree logLike is", self.propTree.logLike
 
             logLikeRatio = self.propTree.logLike - self.curTree.logLike
@@ -320,7 +477,7 @@ class STChain(object):
             theSum = logLikeRatio + self.logProposalRatio + self.logPriorRatio
             return theSum
 
-
+    
     def gen(self, aProposal):
         gm = ['STChain.gen()']
 
@@ -364,6 +521,9 @@ class STChain(object):
         if aProposal.name in ['nni', 'spr']:
             b.logLike = a.logLike
             a.copyToTree(b)
+        elif aProposal.name in ['SR2008beta_uniform']:
+            b.logLike = a.logLike
+            b.beta = a.beta
 
         else:
             gm.append('Unlisted proposal.name = %s  Fix me.' % aProposal.name)
@@ -382,6 +542,7 @@ class STMcmcTunings(object):
         object.__setattr__(self, 'chainTemp', 0.15)  # was 0.2
         object.__setattr__(self, 'nni', None)  
         object.__setattr__(self, 'spr', None)  
+        object.__setattr__(self, 'SR2008beta_uniform', 0.2)  
 
 
     def __setattr__(self, item, val):
@@ -399,9 +560,10 @@ class STMcmcTunings(object):
     def reprString(self, advice=True):
         lst = ["\nSTMcmc.tunings:"]
         spacer = ' ' * 4
-        lst.append("%s%15s: %s" % (spacer, 'chainTemp', self.chainTemp))
-        lst.append("%s%15s: %s" % (spacer, 'nni', self.nni))
-        lst.append("%s%15s: %s" % (spacer, 'spr', self.spr))
+        lst.append("%s%20s: %s" % (spacer, 'chainTemp', self.chainTemp))
+        lst.append("%s%20s: %s" % (spacer, 'nni', self.nni))
+        lst.append("%s%20s: %s" % (spacer, 'spr', self.spr))
+        lst.append("%s%20s: %s" % (spacer, 'SR2008beta_uniform', self.SR2008beta_uniform))
         return string.join(lst, '\n')
 
     def dump(self):
@@ -433,6 +595,7 @@ class STMcmcProposalProbs(dict):
     def __init__(self):
         object.__setattr__(self, 'nni', 1.0)
         object.__setattr__(self, 'spr', 1.0)
+        object.__setattr__(self, 'SR2008beta_uniform', 1.0)
 
 
     def __setattr__(self, item, val):
@@ -462,7 +625,7 @@ class STMcmcProposalProbs(dict):
         theKeys = self.__dict__.keys()
         theKeys.sort()
         for k in theKeys:
-            stuff.append("        %15s: %s" % (k, getattr(self, k)))
+            stuff.append("        %20s: %s" % (k, getattr(self, k)))
         return string.join(stuff, '\n')
 
     def dump(self):
@@ -494,7 +657,7 @@ class STProposal(object):
         print "    nAcceptances by temperature:  %s" % self.nAcceptances
         
     def _getTuning(self):
-        if self.name in ['nni', 'spr']:
+        if self.name in ['nni', 'spr', 'SR2008beta_uniform']:
             #print "getting tuning for %s, returning %f" % (self.name, getattr(self.mcmc.tunings, self.name))
             #print self.stMcmc.tunings
             return getattr(self.stMcmc.tunings, self.name)
@@ -516,154 +679,185 @@ class BigTSplitStuff(object):
         self.theSpl = None
         self.maskedSplitWithFirstTaxOne = None
         self.onesCount = None
+        self.bytes = None
     def dump(self):
-        print "  ss: node %2i, spl=%s, spl2=%s" % (self.nodeNum, self.spl, self.spl2)
+        print "ss: spl=%s, spl2=%s, masked=%s, onesCount=%s" % (
+            self.spl, self.spl2, self.maskedSplitWithFirstTaxOne, self.onesCount)
 
 
 
 class STMcmc(object):
     """An MCMC for making supertrees from a set of input trees.
 
-    inTrees
-        A list of p4 tree objects.
+This week, it implements the Steel and Rodrigo 2008 model, with the
+alpha calculation using the approximation in Bryant and Steel 2009.
 
-    nChains
-        The number of chains in the MCMCMC, default 1
+**Arguments**
 
-    runNum
-        You may want to do more than one 'run' in the same directory,
-        to facilitate convergence testing (another idea stolen from
-        MrBayes, so thanks to the authors).  The first runNum would be
-        0, and samples, likelihoods, and checkPoints are written to
-        files with that number.
+inTrees
+    A list of p4 tree objects.  You could just use ``var.trees``.
 
-    sampleInterval
-        Interval at which the (cold) chain is sampled, including
-        writing a tree, and the logLike.
+modelName
+    The SR2008 models implemented here are based on the Steel and
+    Rodrigo 2008 description of a likelihood model, "Maximum
+    likelihood supertrees" Syst. Biol. 57(2):243--250, 2008.  At
+    the moment, they are all SR2008_rf, meaning that they use
+    Robinson-Foulds distances.
 
-    checkPointInterval
-        Intervals at which the MCMC is checkpointed, meaning that the
-        whole thing is written to a pickle file.  You can re-start
-        from a checkpoint, eg in the event of a crash, or if you just
-        want to make the MCMC run longer.  You can turn off
-        checkPointing by setting it to zero or None.
+    SR2008_rf_ia 
 
-    defaultBeta
-        By default, the defaultBeta is 1.0.  The beta is the weight as
-        given in Steel and Rodrigo 2008.  Each input tree needs one
-        (although it may be that each $X_i$ needs one ...), and they
-        can be assigned before being given to this class.  If
-        theInputTree.beta is already assigned, it is left alone, but
-        if it has not been assigned, then a default value as given
-        here is assigned to it.
+        Here 'ia' means 'ignore alpha'.  The alpha values are not
+        calculated at all, as they are presumed (erroneously, but
+        not too badly) to cancel out.
+
+    SR2008_rf_aZ
+
+        This uses the approximation for Z_T = alpha^{-1} as described
+        in Equation 30 in the Bryant and Steel paper "Computing the
+        distribution of a tree metric" in IEEE/ACM Transactions on
+        computational biology and bioinformatics, VOL. 6, 2009.
+
+    SR2008_rf_aZ_fb
+
+        This is as SR2008_rf_aZ above, but additionally it allows
+        beta to be a free parameter, and it is sampled.  Samples
+        are written to mcmc_prams* files.
+
+beta
+    This only applies to SR2008.  The beta is the weight as
+    given in Steel and Rodrigo 2008. By default it is 1.0.
 
 
-    It is based on the Steel and Rodrigo 2008 description of a
-    likelihood model, "Maximum likelihood supertrees"
-    Syst. Biol. 57(2):243--250, 2008.  It does not have the corrections
-    described in the Bryant and Steel paper "Computing the
-    distribution of a tree metric" in IEEE/ACM Transactions on
-    computational biology and bioinformatics, VOL. 6, 2009.
+stRFCalc 
 
-    There are three ways to calculate the likelihood, all giving the
-    same answer.
-    1.  Native.  Slow.
-    2.  Using the bitarray module.  Much faster.
+    There are three ways to calculate the RF distances and
+    likelihood, for these SR2008_rf models above --- all giving
+    the same answer.
 
-    3.  Using boost an ublas.  Even faster, but a bit of a bother to
-        get going.  Needs the Stm (p4stm) module.
+    1.  purePython1.  Slow.
 
-    It is under control of the variable var.stCalc, which can be one
-    of 'native', 'bitarray', and 'p4stm'.  By default it is native, so
-    you may want to at least install bitarray.
+    2.  bitarray, using the bitarray module.  About twice as fast
+        as purePython1
 
-    To prepare for a run, instantiate an Mcmc object::
+    3.  fastReducedRF, written in C++ using boost and ublas.
+        About 10 times faster than purePython1, but perhaps a bit
+        of a bother to get going.  It needs the fastReducedRF
+        module, included in the p4 source code.
 
-        m = STMcmc(treeList, sampleInterval=10, checkpointInterval=2000)
+    It is under control of the argument stRFCalc, which can be one
+    of 'purePython1', 'bitarray', and 'fastReducedRF'.  By default
+    it is purePython1, so you may want to at least install
+    bitarray.
 
-    To start it running, do this::
+runNum
 
-        m.run(10000) # Tell it the number of generations to do
+    You may want to do more than one 'run' in the same directory,
+    to facilitate convergence testing.  The first runNum would be
+    0, and samples, likelihoods, and checkPoints are written to
+    files with that number.
 
-    You will want to make the last generation land on a
-    checkPointInterval.  So in this case 10000 is ok, but 9000 is not.
+sampleInterval
 
-    As it runs, it saves trees and likelihoods at sampleInterval
-    intervals (actually whenever the current generation number is
-    evenly divisible by the sampleInterval).
+    Interval at which the chain is sampled, including writing a tree,
+    and the logLike.  Plan to get perhaps 1000 samples; so if you are
+    planning to make a run of 10000 generations then you might set
+    sampleInterval=10.
 
-    Whenever the current generation number is evenly divisible by the
-    checkPointInterval it will write a checkPoint file.  A checkPoint
-    file is the whole MCMC, pickled.  Using a checkPoint, you can
-    re-start an STMcmc from the point you left off.  Or, in the event
-    of a crash, you can restart from the latest checkPoint.  But the
-    most useful thing about them is that you can query checkPoints to
-    get information about how the chain has been running, and about
-    convergence diagnostics.
+checkPointInterval
 
-    In order to restart the MCMC from the end of a previous run:: 
+    Interval at which checkpoints are made.  If set to None (the
+    default) it means don't make checkpoints.  My taste is to aim to
+    make perhaps 2 to 4 per run.  So if you are planning to start out
+    with a run of 10000 generations, you could set
+    checkPointInterval=5000, which will give you 2 checkpoints.  See
+    more about checkpointing below.
 
-        # read the last checkPoint file
-        m = func.unPickleStMcmc(0)  # runNum 0
-        m.run(20000)
+To prepare for a run, instantiate an Mcmc object, for example::
 
-    Its that easy if your previous run finished properly.  However, if
-    your previous run has crashed and you want to restart it from a
-    checkPoint, then you will need to repair the sample output files
-    to remove samples that were taken after the last checkPoint, but
-    before the crash.  Fix the trees, likelihoods, prams, and sims.
-    (You probably do not need to beware of confusing gen (eg 9999) and
-    gen+1 (eg 10000) issues.)  When you remove trees from the tree
-    files be sure to leave the 'end;' at the end-- p4 needs it, and
-    will deal with it.
+    m = STMcmc(treeList, modelName='SR2008_rf_aZ_fb', stRFCalc='fastReducedRF', sampleInterval=10)
 
-    The checkPoints can help with convergence testing.  To help with
-    that, you can use the STMcmcCheckPointReader class.  It will print
-    out a table of average standard deviations of split supports
-    between 2 runs, or between 2 checkPoints from the same run.  It
-    will print out tables of proposal acceptances to show whether they
-    change over the course of the MCMC.
+To start it running, do this::
 
-    To make a consensus from the trees from more than one run, you can
-    add trees to an existing TreePartitions object, like this::
+    # Tell it the number of generations to do
+    m.run(10000)
 
-        tp = TreePartitions('mcmc_trees_0.nex', skip=500)
-        tp.read('mcmc_trees_1.nex', skip=500)
-        t = tp.consensus()
-        # and perhaps something like ...
-        for n in t.iterInternalsNoRoot():
-            n.name = '%.0f' % (100. * n.br.support)
-        t.writeNexus('cons.nex')
+As it runs, it saves trees and likelihoods at sampleInterval
+intervals (actually whenever the current generation number is
+evenly divisible by the sampleInterval).
+
+**CheckPoints**
+
+Whenever the current generation number is evenly divisible by the
+checkPointInterval it will write a checkPoint file.  A checkPoint
+file is the whole MCMC, pickled.  Using a checkPoint, you can
+re-start an STMcmc from the point you left off.  Or, in the event
+of a crash, you can restart from the latest checkPoint.  But the
+most useful thing about them is that you can query checkPoints to
+get information about how the chain has been running, and about
+convergence diagnostics.
+
+In order to restart the MCMC from the end of a previous run:: 
+
+    # read the last checkPoint file
+    m = func.unPickleStMcmc(0)  # runNum 0
+    m.run(20000)
+
+Its that easy if your previous run finished properly.  However, if
+your previous run has crashed and you want to restart it from a
+checkPoint, then you will need to repair the sample output files
+to remove samples that were taken after the last checkPoint, but
+before the crash.  Fix the trees, likelihoods, prams, and sims.
+(You probably do not need to beware of confusing gen (eg 9999) and
+gen+1 (eg 10000) issues.)  When you remove trees from the tree
+files be sure to leave the 'end;' at the end-- p4 needs it, and
+will deal with it.
+
+The checkPoints can help with convergence testing.  To help with
+that, you can use the STMcmcCheckPointReader class.  It will print
+out a table of average standard deviations of split supports
+between 2 runs, or between 2 checkPoints from the same run.  It
+will print out tables of proposal acceptances to show whether they
+change over the course of the MCMC.
+
+**Making a consensus tree**
+
+See :class:`TreePartitions`.
 
     """
 
     
-    def __init__(self, inTrees, nChains=1, runNum=0, sampleInterval=100, checkPointInterval=None, verbose=True, defaultBeta=1.0, allowPolytomyInTrees=False, dMetric='sd'):
+    def __init__(self, inTrees, modelName='SR2008_rf_aZ', beta=1.0, stRFCalc='purePython1', runNum=0, sampleInterval=100, checkPointInterval=None):
         gm = ['STMcmc.__init__()']
-        self.verbose = verbose
 
-        # Each inTree needs a beta, default 1.0
+        goodModelNames = ['SR2008_rf_ia', 'SR2008_rf_aZ', 'SR2008_rf_aZ_fb']
+        if modelName not in goodModelNames:
+            gm.append("Arg modelName '%s' is not recognized. " % modelName)
+            gm.append("Good modelNames are %s" % goodModelNames)
+            raise Glitch, gm
+        self.modelName = modelName
+
+        try:
+            fBeta = float(beta)
+        except ValueError:
+            gm.append("Arg beta (%s) should be a float" % beta)
+            raise Glitch, gm
+        self.beta = fBeta
+
         for t in inTrees:
-            if not hasattr(t, 'beta'):
-                t.beta = defaultBeta
+            if t.isFullyBifurcating():
+                pass
             else:
-                try:
-                    t.beta = float(t.beta)
-                except ValueError:
-                    if t.name:
-                        gm.append("input tree %s" % t.name)
-                    gm.append("I was unable to convert beta %s to a float" % t.beta)
+                gm.append("At the moment STMcmc wants trees that are fully bifurcating.")
+                raise Glitch, gm
 
-        if allowPolytomyInTrees:
-            pass
-        else:
-            for t in inTrees:
-                if t.isFullyBifurcating():
-                    pass
-                else:
-                    gm.append("At the moment STMcmc wants trees that are fully bifurcating.")
-                    raise Glitch, gm
-        
+        goodSTRFCalcNames = ['purePython1', 'bitarray', 'fastReducedRF']
+        if stRFCalc not in goodSTRFCalcNames:
+            gm.append("Arg stRFCalc '%s' is not recognized. " % modelName)
+            gm.append("Good stRFCalc names are %s" % goodSTRFCalcNames)
+            raise Glitch, gm
+        self.stRFCalc = stRFCalc
+
+        nChains = 1 # mcmcmc is off, temporarily
         try:
             nChains = int(nChains)
         except (ValueError,TypeError):
@@ -678,13 +872,6 @@ class STMcmc(object):
         self.startMinusOne = -1
         self.constraints = None
         self.simulate = None
-
-        goodDMetrics = ['sd', 'scqdist']
-        if dMetric not in goodDMetrics:
-            gm.append("dMetric should be one of %s" % goodDMetrics)
-            gm.append("got '%s'" % dMetric)
-            raise Glitch, gm
-        self.dMetric = dMetric
 
         try:
             runNum = int(runNum)
@@ -741,9 +928,10 @@ class STMcmc(object):
         self.treePartitions = None
         self.likesFileName = "mcmc_likes_%i" % runNum
         self.treeFileName = "mcmc_trees_%i.nex" % runNum
-        #self.simFileName = "mcmc_sims_%i" % runNum
-        #self.pramsFileName = "mcmc_prams_%i" % runNum
-        #self.writePrams = writePrams
+        self.pramsFileName = "mcmc_prams_%i" % runNum
+        self.writePrams = False
+        if self.modelName in ['SR2008_rf_aZ_fb']:
+            self.writePrams = True
 
         self.lastTimeCheck = None
 
@@ -767,11 +955,16 @@ class STMcmc(object):
             t.unsorted_taxNames = [n.name for n in t.iterLeavesNoRoot()]
             allNames += t.unsorted_taxNames          # Efficient?  Probably does not matter.
         self.taxNames = list(set(allNames))
+        self.taxNames.sort()                         # not needed, but nice for debugging
         #print self.taxNames
         self.nTax = len(self.taxNames)
-        if var.stCalc == 'bitarray':
+
+
+        if self.stRFCalc == 'bitarray':
             #print "self.taxNames = ", self.taxNames
             for t in inTrees:
+                #print "-" * 50
+                #t.draw()
                 sorted_taxNames = []
                 t.baTaxBits = []
                 for tNum in range(self.nTax):
@@ -784,8 +977,15 @@ class STMcmc(object):
                 t.taxNames = sorted_taxNames
                 t.baTaxBits = bitarray.bitarray(t.baTaxBits)
                 t.firstTax = t.baTaxBits.index(1)
+                #print "intree baTaxBits is %s" % t.baTaxBits
+                #print "intree firstTax is %i" % t.firstTax
 
-                # Can't use Tree.makeSplitKeys(), unfortunately.  So make split keys here.
+                # Can't use Tree.makeSplitKeys(), unfortunately.  So
+                # make split keys here.  STMcmc.tBits is only used for
+                # the leaves, here and in
+                # STChain.setupBitarrayCalcs(), and there only once,
+                # during STChain.__init__().  So probably does not
+                # need to be an instance attribute.  Maybe delete?
                 self.tBits = [False] * self.nTax
                 for n in t.iterPostOrder():
                     if n == t.root:
@@ -801,17 +1001,17 @@ class STMcmc(object):
                         while p:
                             n.stSplitKey |= p.stSplitKey    # "or", in-place
                             p = p.sibling
-                t.skk = []
+                        #print "setting node %i stSplitKey to %s" % (n.nodeNum, n.stSplitKey)
                 t.splSet = set()
                 for n in t.iterInternalsNoRoot():
                     if not n.stSplitKey[t.firstTax]:   # make sure splitKey[firstTax] is a '1'
                         n.stSplitKey.invert()
                         n.stSplitKey &= t.baTaxBits     # 'and', in-place
-                    t.skk.append(n.stSplitKey)
+                        #print "inverting and and-ing node %i stSplitKey to %s" % (n.nodeNum, n.stSplitKey)
                     t.splSet.add(n.stSplitKey.tobytes()) # bytes so that I can use it as a set element
 
         else:
-            assert var.stCalc in ['native', 'p4stm']
+            assert self.stRFCalc in ['purePython1', 'fastReducedRF']
             for t in inTrees:
                 sorted_taxNames = []
                 t.taxBits = 0L
@@ -828,27 +1028,31 @@ class STMcmc(object):
 
         self.trees = inTrees
         self.tree = func.randomTree(taxNames=self.taxNames, name='stTree', randomBrLens=False)
-        if var.stCalc in  ['native', 'p4stm']:
+        if self.stRFCalc in  ['purePython1', 'fastReducedRF']:
             self.tree.makeSplitKeys()
 
-        #elif var.stCalc == 'bitarray':
-            
-
-        self.Stm = None
-        if var.stCalc == 'p4stm':
+        self.Frrf = None
+        if self.stRFCalc == 'fastReducedRF':
             try:
-                import p4stm
-                self.Stm = p4stm.Stm
+                import fastReducedRF
+                self.Frrf = fastReducedRF.Frrf
                 import pyublas # not explicitly used--but makes converters available
             except ImportError:
-                gm.append("var.stCalc is set to 'p4stm', but I could not import p4stm or pyublas.  Make sure they are installed.")
+                gm.append("var.stRFCalc is set to 'fastReducedRF', but I could not import")
+                gm.append("at least one of fastReducedRF or pyublas.")
+                gm.append("Make sure they are installed.")
                 raise Glitch, gm
 
+        print "Initializing STMcmc"
+        print "%-10s: %s" % ('modelName', modelName)
+        print "%-10s: %s" % ('stRFCalc', self.stRFCalc)
+        print "%-10s: %s" % ('inTrees', len(self.trees))
+        print "%-10s: %s" % ('nTax', self.nTax)
 
 
 
     def _makeProposals(self):
-        """Make proposals for the stmcmc."""
+        """Make proposals for the STMcmc."""
 
         gm = ['STMcmc._makeProposals()']
 
@@ -858,17 +1062,21 @@ class STMcmc(object):
             p = STProposal(self)
             p.name = 'nni'
             p.weight = self.prob.nni # * (len(self.tree.nodes) - 1) * fudgeFactor['nni']
-            #p.tuning = self.tunings.local
             self.proposals.append(p)
-            #object.__setattr__(self.tuningsUsage, 'local', p)
 
         if self.prob.spr:
             p = STProposal(self)
             p.name = 'spr'
             p.weight = self.prob.spr # * (len(self.tree.nodes) - 1) * fudgeFactor['nni']
-            #p.tuning = self.tunings.local
             self.proposals.append(p)
-            #object.__setattr__(self.tuningsUsage, 'local', p)
+
+        if self.modelName in ['SR2008_rf_aZ_fb']:
+            if self.prob.SR2008beta_uniform:
+                p = STProposal(self)
+                p.name = 'SR2008beta_uniform'
+                p.weight = self.prob.SR2008beta_uniform # * (len(self.tree.nodes) - 1) * fudgeFactor['nni']
+                self.proposals.append(p)
+                #object.__setattr__(self.tuningsUsage, 'local', p)
 
 
         if not self.proposals:
@@ -925,10 +1133,10 @@ class STMcmc(object):
             spacer = ' ' * 8
             print "\nProposal acceptances, run %i, for %i gens, from gens %i to %i, inclusive." % (
                 self.runNum, (self.gen - self.startMinusOne), self.startMinusOne + 1, self.gen)
-            print "%s %15s %10s %13s%8s" % (spacer, 'proposal', 'nProposals', 'acceptance(%)', 'tuning')
+            print "%s %20s %10s %13s%8s" % (spacer, 'proposal', 'nProposals', 'acceptance(%)', 'tuning')
             for p in self.proposals:
                 print "%s" % spacer,
-                print "%15s" % p.name,
+                print "%20s" % p.name,
                 print "%10i" % p.nProposals[0],
 
                 if p.nProposals[0]: # Don't divide by zero
@@ -1063,7 +1271,7 @@ class STMcmc(object):
             #     #print p.logBigT
 
     def _setOutputTreeFile(self):
-        """Setup the (output) tree file for the stmcmc."""
+        """Setup the (output) tree file for the STMcmc."""
 
         gm = ['STMcmc._setOutputTreeFile()']
 
@@ -1219,17 +1427,14 @@ class STMcmc(object):
             if verbose:
                 print "Starting the MCMC %s run %i" % ((self.constraints and "(with constraints)" or ""), self.runNum)
                 print "Set to do %i generations." % nGensToDo
-                # if self.writePrams:
-                #     if self.chains[0].curTree.model.nFreePrams == 0:
-                #         print "There are no free prams in the model, so I am turning writePrams off."
-                #         self.writePrams = False
-                #     else:
-                #         pramsFile = file(self.pramsFileName, 'a')
-                #         self.chains[0].curTree.model.writePramsProfile(pramsFile)
-                #         #pramsFile.write("     genPlus1")
-                #         pramsFile.write("genPlus1")
-                #         self.chains[0].curTree.model.writePramsHeaderLine(pramsFile)
-                #         pramsFile.close()
+                if self.writePrams:
+                    # if self.chains[0].curTree.model.nFreePrams == 0:
+                    #     print "There are no free prams in the model, so I am turning writePrams off."
+                    #     self.writePrams = False
+                    # else:
+                    pramsFile = file(self.pramsFileName, 'a')
+                    pramsFile.write("    genPlus1     beta\n")
+                    pramsFile.close()
                 sys.stdout.flush()
             
         if verbose:
@@ -1385,12 +1590,12 @@ class STMcmc(object):
                                                                doMcmcCommandComments=False)
                     treeFile.close()
 
-                # if self.writePrams:
-                #     pramsFile = file(self.pramsFileName, 'a')
-                #     #pramsFile.write("%12i " % (self.gen + 1))
-                #     pramsFile.write("%12i" % (self.gen + 1))
-                #     self.chains[coldChainNum].curTree.model.writePramsLine(pramsFile)
-                #     pramsFile.close()
+                if self.writePrams:
+                    pramsFile = file(self.pramsFileName, 'a')
+                    #pramsFile.write("%12i " % (self.gen + 1))
+                    pramsFile.write("%12i" % (self.gen + 1))
+                    pramsFile.write("  %f\n" % self.chains[coldChainNum].curTree.beta)
+                    pramsFile.close()
 
                 # Do a simulation
                 if self.simulate:
@@ -1525,83 +1730,23 @@ class STMcmc(object):
         self.lastTimeCheck = nowTime
         return deltaTime
 
-    # def writeSimFileHeader(self, curTree):
-    #     simFile = file(self.simFileName, 'a')
-    #     simFile.write(" genPlus1")
-    #     if 1 & self.simulate:  # If self.simulate contains a 1, do unconstrained log like
-    #         for pNum in range(self.simTree.data.nParts):
-    #             simFile.write(' uncLike%i' % pNum)
-    #     if 2 & self.simulate:  # If self.simulate contains a 2, do bigX^2
-    #         for pNum in range(self.simTree.model.nParts):
-    #             simFile.write(' bigXSq%i' % pNum)
-    #     if 4 & self.simulate:  # If self.simulate contains a 4, do meanNCharPerSite
-    #         for pNum in range(self.simTree.model.nParts):
-    #             simFile.write(' meanCharsPerSite%i' % pNum)
-    #     if 8 & self.simulate:  # If self.simulate contains an 8, do c_m, the compStatFromCharFreqs
-    #         for pNum in range(self.simTree.model.nParts):
-    #             simFile.write(' c_mSim%i  c_mOrig%i' % (pNum, pNum))
-    #     if 16 & self.simulate:  # If self.simulate contains a 16, do constant sites count
-    #         for pNum in range(self.simTree.model.nParts):
-    #             simFile.write(' nConstSites%i' % pNum)
-    #     simFile.write('\n')
-    #     simFile.close()
-        
-
-    # def doSimulate(self, curTree):
-    #     curTree.copyToTree(self.simTree)
-    #     curTree.model.copyValsTo(self.simTree.model)
-    #     self.simTree.simulate()
-    #     simFile = file(self.simFileName, 'a')
-    #     simFile.write(" %11i" % (self.gen + 1))
-    #     if 1 & self.simulate:  # If self.simulate contains a 1, do unconstrained log like
-    #         for p in self.simTree.data.parts:
-    #             simFile.write(' %f' % pf.getUnconstrainedLogLike(p.cPart))
-    #     if 2 & self.simulate:  # If self.simulate contains a 2, do bigX^2
-    #         #ret2 = self.simTree.data.compoChiSquaredTest(verbose=0, skipColumnZeros=True)
-    #         #for pNum in range(self.simTree.model.nParts):
-    #         #    simFile.write(' %f' % ret[pNum][0])
-    #         ret = self.simTree.data.simpleBigXSquared()
-    #         for pNum in range(self.simTree.model.nParts):
-    #             simFile.write(' %f' % ret[pNum])
-    #         #for i in range(len(ret)):
-    #         #    if math.fabs(ret[i][0] - ret2[i]) > 0.000001:
-    #         #        print "The two methods of bigXSquared calculations differed.  %f and %f" % (ret[i], ret2[i])
-    #     if 4 & self.simulate:  # If self.simulate contains a 4, do meanNCharPerSite
-    #         ret = self.simTree.data.meanNCharsPerSite()
-    #         # ret is a list, one number per part
-    #         for pNum in range(self.simTree.model.nParts):
-    #             simFile.write(' %f' % ret[pNum])
-    #     if 8 & self.simulate:  # If self.simulate contains an 8, do c_m, the compStatFromCharFreqs
-    #         ret = self.simTree.compStatFromCharFreqs()
-    #         ret2 = curTree.compStatFromCharFreqs()
-    #         # ret is a list, one number per part
-    #         for pNum in range(self.simTree.model.nParts):
-    #             simFile.write(' %f  %f' % (ret[pNum], ret2[pNum]))
-    #             #print ' compStatFromCharFreqs: %f  %f' % (ret[pNum], ret2[pNum])
-    #     if 16 & self.simulate:  # If self.simulate contains a 16, do constant sites count
-    #         ret = self.simTree.data.simpleConstantSitesCount()
-    #         # ret is a list, one number per part
-    #         for pNum in range(self.simTree.model.nParts):
-    #             simFile.write(' %i' % ret[pNum])
-    #     simFile.write('\n')
-    #     simFile.close()
 
     def checkPoint(self):
-
         # Maybe we should not save the inTrees? -- would make it more lightweight.
         if 0:
             for chNum in range(self.nChains):
                 ch = self.chains[chNum]
                 print "chain %i ==================" % chNum
                 ch.curTree.summarizeModelThingsNNodes()
-        # the Stm object does not pickle, and this commented-out bit does not fix it.  
-        savedStms = []
+
+        # the Frrf object does not pickle
+        savedFrrfs = []
         savedBigTrs = []
-        if var.stCalc == 'p4stm':
+        if self.stRFCalc == 'fastReducedRF':
             for chNum in range(self.nChains):
                 ch = self.chains[chNum]
-                savedStms.append(ch.stm)
-                ch.stm = None
+                savedFrrfs.append(ch.frrf)
+                ch.frrf = None
                 savedBigTrs.append(ch.bigTr)
                 ch.bigTr = None
             
@@ -1618,10 +1763,10 @@ class STMcmc(object):
         cPickle.dump(theCopy, f, 1)
         f.close()
 
-        if var.stCalc == 'p4stm':
+        if self.stRFCalc == 'fastReducedRF':
             for chNum in range(self.nChains):
                 ch = self.chains[chNum]
-                ch.stm = savedStms[chNum]
+                ch.frrf = savedFrrfs[chNum]
                 ch.bigTr = savedBigTrs[chNum]
        
 
@@ -1666,7 +1811,7 @@ class STMcmc(object):
         #print "There are %i proposals" % len(self.proposals)
         print "For %i gens, from gens %i to %i, inclusive." % (
             (self.gen - self.startMinusOne), self.startMinusOne + 1, self.gen)
-        print "%2s %11s %11s  %11s %10s %18s %5s %5s" % ('', 'nProposals', 'proposed(%)',
+        print "%2s %11s %11s  %11s %10s %23s %5s %5s" % ('', 'nProposals', 'proposed(%)',
                                                     'accepted(%)', 'tuning', 'proposal', 'part', 'num')
         for i in range(len(self.proposals)):
             print "%2i" % i,
@@ -1685,7 +1830,7 @@ class STMcmc(object):
             else:
                 print "   %7.1f  " % p.tuning,
 
-            print " %15s" % p.name,
+            print " %20s" % p.name,
             if p.pNum != -1:
                 print " %3i " % p.pNum,
             else:
@@ -1714,13 +1859,13 @@ class STMcmc(object):
         spacer = ' ' * 4
         print "\nIntended proposal probabilities (%)"
         #print "There are %i proposals" % len(self.proposals)
-        print "%2s %11s %18s %5s %5s" % ('', 'intended(%)', 'proposal', 'part', 'num')
+        print "%2s %11s %23s %5s %5s" % ('', 'intended(%)', 'proposal', 'part', 'num')
         for i in range(len(self.proposals)):
             print "%2i" % i,
             p = self.proposals[i]
             print "   %6.2f    " % (100. * intended[i]),
 
-            print " %15s" % p.name,
+            print " %20s" % p.name,
             if p.pNum != -1:
                 print " %3i " % p.pNum,
             else:

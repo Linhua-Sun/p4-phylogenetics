@@ -2,6 +2,79 @@
 #include <pyublas/numpy.hpp>
 #include <vector>
 #include <boost/dynamic_bitset.hpp>
+#include <cmath>
+
+/*
+def bForN(n):
+    prod = 1
+    if n > 3:
+        for k in range(4, n + 1):
+            prod *= ((2 * k) - 5)
+    return prod
+        
+
+def BS2009_Eqn30_ZTApprox(n, beta, cT):
+    myLambda = cT/(2.0*n)
+    tester = 0.5 * math.log((n - 3.)/myLambda)
+
+    epsilon = math.exp(-2. * beta)
+    bigANEpsilon = 1 + (((2. * n) - 3.) * epsilon) + (2. * ((n * n) - (4. * n) - 6.) * epsilon * epsilon)
+    termA = bigANEpsilon + 6 * cT * epsilon * epsilon
+
+    if beta < tester:
+        termB = math.exp(-(2. * beta) * (n - 3.) + (myLambda * (math.exp(2. * beta) - 1.)))
+        termB *= bForN(n)
+        if termA > termB:
+            return termA
+        else:
+            return termB
+    else:
+        return termA
+*/
+
+double bForN(int n)             // only good for n up to 152
+{
+  double prod = 1.;
+  if (n > 3) {
+    for (int k=4; k<=n; k++) {
+      prod *= (double)((2 * k) - 5);
+    }
+  }
+  return prod;
+}
+
+double BS2009_Eqn30_ZTApprox(int n, double beta, int cT) 
+{
+  double myLambda;
+  double tester;
+  double epsilon;
+  double bigANEpsilon;
+  double termA;
+  double termB;
+  double dn;
+  double dcT;
+
+  dn = (double)n;
+  dcT = (double)cT;
+  myLambda = dcT/(2.0 * dn);
+  tester = 0.5 * std::log((dn - 3.0)/myLambda);
+
+  epsilon = std::exp(-2.0 * beta);
+  bigANEpsilon = 1. + (((2. * dn) - 3.) * epsilon) + (2. * ((dn * dn) - (4. * dn) - 6.) * epsilon * epsilon);
+  termA = bigANEpsilon + 6. * dcT * epsilon * epsilon;
+
+  if (beta < tester) {
+    termB = std::exp(-(2. * beta) * (dn - 3.) + (myLambda * (std::exp(2. * beta) - 1.)));
+    termB *= bForN(n);
+    if (termA > termB) {
+      return termA;
+    } else {
+      return termB;
+    }
+  } else {
+    return termA;
+  }
+}
 
 class BtKB
 {
@@ -111,16 +184,13 @@ public:
   int nTax;
   pyublas::numpy_vector<int> postOrder;
   int nAllTax;
-  double beta;
-  //std::vector<boost::dynamic_bitset<>*> bitKeys; 
   std::vector<BtKB*> bitKeyBs; 
   boost::dynamic_bitset<> taxBits;
   std::size_t firstOnePos;
   std::vector<No*> nodes;
 
-  Tr(int nN, int nTax, pyublas::numpy_vector<int> pO, int nAllTax, double beta): 
-    nNo(nN), nTax(nTax), postOrder(pO), nAllTax(nAllTax), beta(beta), //taxBits(NULL), 
-    firstOnePos(-1)
+  Tr(int nN, int nTax, pyublas::numpy_vector<int> pO, int nAllTax): 
+    nNo(nN), nTax(nTax), postOrder(pO), nAllTax(nAllTax), firstOnePos(-1)
   {
     for(int i=0; i < nNo; i++) {
       No* newNo = new No(i, nAllTax);
@@ -271,6 +341,10 @@ public:
       bKK = this->bitKeyBs[i];
       for(int i2 = 0; i2 < (iT->nNo - 1); i2++) {
 	itn = iT->nodes[iT->postOrder[i2]];
+	//if(itn->isLeaf == 0) {
+	//  std::cout << "Checking bKK->bK=" << bKK->bK;
+	//  std::cout << "  itn->bitKey=" << itn->bitKey  << std::endl;
+	//}
 	if((itn->isLeaf == 0) && (itn->isInOther == 0) && (bKK->bK == itn->bitKey)) {
 	  //std::cout << "Bit key " << itn->bitKey << " is found in both" << std::endl;
 	  bKK->isInOther = 1;
@@ -278,7 +352,6 @@ public:
 	  break;
 	}
       }
-      
     }
 
     double total;
@@ -295,8 +368,35 @@ public:
   	total += 1.0;
       }
     }
+    return total;
+  }
 
-    return total * iT->beta;
+  int countNCherries(Tr* iT) {
+    std::size_t i;
+    std::size_t nOnes;
+    BtKB* bKK;
+    int nCherries = 0;
+    int nTaxMinusTwo; 
+
+    if((iT->nTax == 4) || (iT->nTax == 5)) {
+      nCherries = 2;
+      return nCherries;
+    }
+
+    nTaxMinusTwo = iT->nTax - 2;
+
+    for(i = 0; i < this->bitKeyBs.size(); i++) {
+      bKK = this->bitKeyBs[i];
+      nOnes = bKK->bK.count();
+      if((nOnes == 2) || (nOnes == nTaxMinusTwo)) {
+	nCherries += 1;
+      }
+      //std::cout << "bKK->bK=" << bKK->bK;
+      //std::cout << " nOnes=" << nOnes;
+      //std::cout << " iT->nTax=" << iT->nTax;
+      //std::cout << std::endl;
+    }
+    return nCherries;
   }
 
   void dump() {
@@ -312,15 +412,16 @@ public:
 
 };
 
-class Stm
+class Frrf
 {
 public:
   int nTax;
   Tr* bigT;
+  double beta;
   std::vector<Tr*> inTrees;
   std::vector<boost::dynamic_bitset<>*> singleBits;
 
-  Stm(int nTax): nTax(nTax), 
+  Frrf(int nTax): nTax(nTax), 
 		 bigT(NULL) 
   {
   } 
@@ -328,7 +429,7 @@ public:
   Tr setBigT(int nN, int nTax, pyublas::numpy_vector<int> pO) {
     Tr* t;
     No* n;
-    t = new Tr(nN, nTax, pO, this->nTax, 0.0);  // last arg, beta, does not matter for bigT.
+    t = new Tr(nN, nTax, pO, this->nTax); 
     for(std::size_t i=0; i < (unsigned long)(t->nNo); i++) {
       n = t->nodes[i];
       n->bKK = new BtKB(nTax);
@@ -337,18 +438,23 @@ public:
     return *bigT;
   }
 
-  Tr appendInTree(int nN, int nTax, pyublas::numpy_vector<int> pO, double beta) {
+  Tr appendInTree(int nN, int nTax, pyublas::numpy_vector<int> pO) {
     Tr* inTree;
-    inTree = new Tr(nN, nTax, pO, this->nTax, beta);
+    inTree = new Tr(nN, nTax, pO, this->nTax);
     this->inTrees.push_back(inTree);
     return *inTree;
   }
+
+//  void setBeta(double bta) {
+//    this->beta = bta;
+//    //std::cout << "setBeta() to " << this->beta << std::endl;
+//  }
 
   void setInTreeInternalBits() {
     Tr* t;
     for(std::size_t i = 0; i < inTrees.size(); i++) {
       t = inTrees[i];
-      //std::cout << "Stm->setInTreeInternalBits()  setting internal bits for inTree " << i << std::endl;
+      //std::cout << "Frrf->setInTreeInternalBits()  setting internal bits for inTree " << i << std::endl;
       t->setInternalBits();
     }
   }
@@ -358,7 +464,7 @@ public:
     for(std::size_t i = 0; i < inTrees.size(); i++) {
       t = inTrees[i];
       t->setInTreeTaxBits();
-      //std::cout << "Stm.setInTreeTaxBits() setting taxBits for inTree " << i << " to " << t->taxBits;
+      //std::cout << "Frrf.setInTreeTaxBits() setting taxBits for inTree " << i << " to " << t->taxBits;
       //std::cout << " firstOnePos " << t->firstOnePos << std::endl;
     }
   }
@@ -372,12 +478,12 @@ public:
   }
 
   void setBigTInternalBits() {
-    //std::cout << "Stm->setBigTInternalBits()  setting internal bits for bigT " << std::endl;
+    //std::cout << "Frrf->setBigTInternalBits()  setting internal bits for bigT " << std::endl;
     this->bigT->setInternalBits();
   }
 
   void wipeBigTPointers() {
-    //std::cout << "Stm->wipeBigTPointers()" << std::endl;
+    //std::cout << "Frrf->wipeBigTPointers()" << std::endl;
     this->bigT->wipePointers();
   }
 
@@ -389,6 +495,7 @@ public:
     int nNum;
     double sd;
     sd = 0.0;
+
     for(std::size_t i = 0; i < inTrees.size(); i++) {
       iT = inTrees[i];
       for(nNum=0; nNum < iT->nNo; nNum++) {
@@ -407,12 +514,53 @@ public:
       retd = this->bigT->testIsInOther(iT);
       //std::cout << "got this sd=" << retd << std::endl;
       sd += retd;
+
     }
     return sd;
   }
 
+  double getLogLike(double beta) {
+    Tr* iT;
+    int ret;
+    double retd;
+    No* n;
+    int nNum;
+    double approxZT;
+    double logLike;
+    logLike = 0.0;
+    int nCherries;
+
+    for(std::size_t i = 0; i < inTrees.size(); i++) {
+      iT = inTrees[i];
+      for(nNum=0; nNum < iT->nNo; nNum++) {
+	n = iT->nodes[nNum];
+	n->isInOther = 0;
+      }
+      for(nNum=0; nNum < this->bigT->nNo; nNum++) {
+	n = this->bigT->nodes[nNum];
+	n->bKK->isInOther = 0;
+	n->isRelevant = 0;
+      }
+      ret = this->bigT->flagRelevantSplits(iT);
+      //std::cout << "got ret=" << ret << " relevant" << std::endl;
+
+      this->bigT->fillBitKeyBsVector();
+      retd = this->bigT->testIsInOther(iT);
+      //std::cout << "got this sd=" << retd << std::endl;
+
+      nCherries = this->bigT->countNCherries(iT);
+      //std::cout << "got this nCherries=" << nCherries << std::endl;
+
+      approxZT = BS2009_Eqn30_ZTApprox(iT->nTax, beta, nCherries);
+      logLike -= std::log(approxZT);
+      logLike -= (beta * retd);
+    }
+    return logLike;
+  }
+
   void dump() {
-    std::cout << "Stm dump(), nTax=" << this->nTax << std::endl;
+    //std::cout << "Frrf dump(), nTax=" << this->nTax << ", beta=" << this->beta << std::endl;
+    std::cout << "Frrf dump(), nTax=" << this->nTax  << std::endl;
     if(this->bigT == NULL) {
       std::cout << "  bigT is not set" << std::endl;
     } else {
@@ -433,30 +581,29 @@ public:
 
 
 #include <boost/python.hpp> 
-//#include <boost/python/module.hpp>
-//#include <boost/python/def.hpp>
 using namespace boost::python;
  
-BOOST_PYTHON_MODULE(p4stm)
+BOOST_PYTHON_MODULE(fastReducedRF)
 {
 
-  class_<Tr>("Tr", init<int, int, pyublas::numpy_vector<int>, int, double >())
+  class_<Tr>("Tr", init<int, int, pyublas::numpy_vector<int>, int>())
     .def("setParent", &Tr::setParent)
     .def("setLeftChild", &Tr::setLeftChild)
     .def("setSibling", &Tr::setSibling)
     .def("setNodeTaxNum", &Tr::setNodeTaxNum)
     .def("dump", &Tr::dump)
     ;
-  class_<Stm>("Stm", init<int>())
-    .def("setBigT", &Stm::setBigT)
-    .def("appendInTree", &Stm::appendInTree)
-    .def("setInTreeInternalBits", &Stm::setInTreeInternalBits)
-    .def("setInTreeTaxBits", &Stm::setInTreeTaxBits)
-    .def("maybeFlipInTreeBits", &Stm::maybeFlipInTreeBits)
-    .def("setBigTInternalBits", &Stm::setBigTInternalBits)
-    .def("wipeBigTPointers", &Stm::wipeBigTPointers)
-    .def("getSymmDiff", &Stm::getSymmDiff)
-    .def("dump", &Stm::dump)
+  class_<Frrf>("Frrf", init<int>())
+    .def("setBigT", &Frrf::setBigT)
+    .def("appendInTree", &Frrf::appendInTree)
+    .def("setInTreeInternalBits", &Frrf::setInTreeInternalBits)
+    .def("setInTreeTaxBits", &Frrf::setInTreeTaxBits)
+    .def("maybeFlipInTreeBits", &Frrf::maybeFlipInTreeBits)
+    .def("setBigTInternalBits", &Frrf::setBigTInternalBits)
+    .def("wipeBigTPointers", &Frrf::wipeBigTPointers)
+    .def("getSymmDiff", &Frrf::getSymmDiff)
+    .def("getLogLike", &Frrf::getLogLike)
+    .def("dump", &Frrf::dump)
     ;
 }
 
