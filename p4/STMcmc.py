@@ -9,7 +9,11 @@ from Glitch import Glitch
 from TreePartitions import TreePartitions
 from Constraints import Constraints
 import datetime
-import bitarray
+
+try:
+    import bitarray
+except ImportError:
+    pass
 
 
 
