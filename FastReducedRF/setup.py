@@ -3,7 +3,7 @@ from distutils.extension import Extension
 
 setup(name="p4",
     ext_modules=[
-        Extension("p4stm", ['p4stm.cpp'],
+        Extension("fastReducedRF", ['fastReducedRF.cpp'],
             # Adjust the following to be able to find pyublas, numpy, and boost.  Maybe need library_dirs as well?
             include_dirs = ["/usr/local/lib/python2.7/site-packages/pyublas/include",
               "/usr/local/lib/python2.7/site-packages/numpy/core/include",

@@ -24,7 +24,7 @@ class Data:
     def __del__(self, freeData=pf.freeData):
         if self.alignments:
             for a in self.alignments:
-                a.parts = None
+                a.parts = []
         self.alignments = None
         if self.parts:
             #print len(self.parts)

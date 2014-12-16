@@ -114,7 +114,7 @@ class ExcludeDelete(object):
         for cs in self.excludedCharSets:
             if not cs.mask:
                 cs.setMask()
-            for i in range(cs.nChar):
+            for i in range(cs.aligNChar):
                 if cs.mask[i] == '1':
                     self.mask[i] = 0
 
@@ -685,7 +685,7 @@ class Alignment(SequenceList):
         if theCS == None:
             gm.append("This should not happen -- alignment has no charset named '%s'" % charSetName)
             raise Glitch, gm
-        assert theCS.nChar
+        assert theCS.aligNChar
         assert theCS.mask
 
         # prepare the mask
@@ -802,7 +802,7 @@ class Alignment(SequenceList):
         if 0:
             from NexusSets import NexusSets
             a.nexusSets = NexusSets()
-            a.nexusSets.nChar = a.length
+            a.nexusSets.aligNChar = a.length
             a.nexusSets.setPredefinedCharSets(a)
         return a
 
@@ -1162,16 +1162,16 @@ class Alignment(SequenceList):
         self.nexusSets = copy.deepcopy(var.nexusSets)
         self.nexusSets.taxNames = self.taxNames
         self.nexusSets.nTax = self.nTax
-        self.nexusSets.nChar = self.nChar
+        self.nexusSets.aligNChar = self.nChar
 
-        self.nexusSets.constant.setNChar(self.nChar)
-        self.nexusSets.gapped.setNChar(self.nChar)
+        self.nexusSets.constant.setAligNChar(self.nChar)
+        self.nexusSets.gapped.setAligNChar(self.nChar)
         self.nexusSets.constant.mask = self.constantMask()
         self.nexusSets.gapped.mask = self.gappedMask()
 
         if self.nexusSets.charSets:
             for cs in self.nexusSets.charSets:
-                cs.setNChar(self.nChar)
+                cs.setAligNChar(self.nChar)
                 cs.setMask()
 
         if self.nexusSets.taxSets:

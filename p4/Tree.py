@@ -64,7 +64,7 @@ class Tree(object):
         Tree.getAllLeafNames
         Tree.getChildrenNums
         Tree.getDegree
-        Tree.getLen()
+        Tree.getLen
         Tree.getNodeNumsAbove
         Tree.getPreAndPostOrderAbove
         Tree.getPreAndPostOrderAboveRoot
@@ -2584,9 +2584,8 @@ class Tree(object):
 
         The 'metric' can be one of 'sd' (symmetric difference), 'wrf'
         (weighted Robinson-Foulds), 'bld' (Felsenstein's branch-
-        length distance), or 'diffs'.  The
-        unwighted Robinson-Foulds metric would be the same as the
-        symmetric difference.
+        length distance), or 'diffs'.  The unweighted Robinson-Foulds
+        metric would be the same as the symmetric difference.
 
         There is also an experimental scqdist, but that needs the
         scqdist.so module, in the QDist directory.
@@ -2627,7 +2626,6 @@ class Tree(object):
         scipy) that I do not include here, and a fast C++ version,
         that I wrapped in python.  Its speedy -- the 'sc' in 'scqdist'
         is for 'sub-cubic', ie better than O(n^3).
- 
 
         """
 

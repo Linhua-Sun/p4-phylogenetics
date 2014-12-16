@@ -1421,11 +1421,11 @@ def excludeCharSet(self, theCharSetName):
     if theCS == None:
         gm.append("This alignment has no charset named '%s'" % theCharSetName)
         raise Glitch, gm
-    if theCS.nChar == None:
+    if theCS.aligNChar == None:
         if self.excludeDelete:
-            theCS.setNChar(self.excludeDelete.length)
+            theCS.setAligNChar(self.excludeDelete.length)
         else:
-            theCS.setNChar(self.length)
+            theCS.setAligNChar(self.length)
 
     # prepare the mask
     if not theCS.mask:
