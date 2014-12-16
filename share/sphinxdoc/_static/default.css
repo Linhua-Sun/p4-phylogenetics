@@ -1,6 +1,7 @@
 /**
  * Alternate Sphinx design
  * Originally created by Armin Ronacher for Werkzeug, adapted by Georg Brandl.
+ * Tiny mods by peter
  */
 
 body {
@@ -35,6 +36,8 @@ pre {
     padding: 0.5em;
     border: 1px solid #ccc;
     background-color: #f8f8f8;
+    overflow: auto;
+    overflow-y: hidden;  /* fixes display issues on Chrome browsers */
 }
 
 td.linenos pre {

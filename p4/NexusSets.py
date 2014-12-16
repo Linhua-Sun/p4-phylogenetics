@@ -1233,6 +1233,7 @@ class CharPartition(object):
         gm = ['CharPartition.setSubsetMasks()']
 
         assert self.nexusSets.aligNChar
+        
 
         # Make a list of triplets representing eg 23-87\3
         # first item = 23, second item = 87, third = 3

@@ -1,4 +1,4 @@
-import p4stm
+import fastReducedRF
 import numpy
 import pyublas # not explicitly used--but makes converters available
 
@@ -21,10 +21,10 @@ read("(E, G, (D, F));")
 for t in var.trees:
     t.draw()
 
-# Start it up.  bigTr is a p4stm.Tr object, a vaguely Tree-like object
+# Start it up.  bigTr is a fastReducedRF.Tr object, a vaguely Tree-like object
 # for the bigT
-stm = p4stm.Stm(len(tNames))
-bigTr = stm.setBigT(len(bigT.nodes), bigT.nTax, bigT.postOrder)
+frrf = fastReducedRF.Frrf(len(tNames))
+bigTr = frrf.setBigT(len(bigT.nodes), bigT.nTax, bigT.postOrder)
 
 # Set the topology if bigTr.
 for n in bigT.nodes:
@@ -39,8 +39,8 @@ for n in bigT.nodes:
 
 # Make Tr ojects for the input trees, and set their topologies.
 for t in var.trees:
-    t.beta = 2.0  # STMcmc would do this
-    tr = stm.appendInTree(len(t.nodes), t.nTax, t.postOrder, t.beta)
+    #t.beta = 2.0  # STMcmc would do this
+    tr = frrf.appendInTree(len(t.nodes), t.nTax, t.postOrder)
     for n in t.nodes:
         if n.parent:
             tr.setParent(n.nodeNum, n.parent.nodeNum)
@@ -52,19 +52,22 @@ for t in var.trees:
             tr.setSibling(n.nodeNum, n.sibling.nodeNum)
 
 #tr.dump()
-#stm.dump()
+#frrf.dump()
 #print "=" * 25
-stm.setInTreeTaxBits()
-#stm.dump()
-stm.setInTreeInternalBits()
-stm.maybeFlipInTreeBits()
+frrf.setInTreeTaxBits()
+#frrf.dump()
+frrf.setInTreeInternalBits()
+frrf.maybeFlipInTreeBits()
 print
-stm.setBigTInternalBits()
-sd = stm.getSymmDiff()
+frrf.setBigTInternalBits()
+print "-" * 50
+#frrf.dump()
+sd = frrf.getLogLike(1.)
 print sd
 rfDist = bigT.inputTreesToSuperTreeDistances(var.trees, doSd=True, doScqdist=False)
 print rfDist
 print "====="
+#frrf.dump()
 
 if 0:
     for i in range(2000):
@@ -73,7 +76,7 @@ if 0:
         #bigT.write()
         if 1:
             #bigT.draw()
-            stm.wipeBigTPointers()
+            frrf.wipeBigTPointers()
             for n in bigT.nodes:
                 if n.parent:
                     bigTr.setParent(n.nodeNum, n.parent.nodeNum)
@@ -83,15 +86,16 @@ if 0:
                 #    bigTr.setNodeTaxNum(n.nodeNum, tNames.index(n.name))
                 if n.sibling:
                     bigTr.setSibling(n.nodeNum, n.sibling.nodeNum)
-            stm.setBigTInternalBits()
-            sd = stm.getSymmDiff()
+            frrf.setBigTInternalBits()
+            sd = frrf.getSymmDiff()
             #print sd
-            #rfDist = bigT.inputTreesToSuperTreeDistances(var.trees, doSd=True, doScqdist=False)
-            #if sd == rfDist:
-            #    pass
-            #    #print "ok"
-            #else:
-            #    print "====================== differs ", sd, rfDist
+            if 1:
+                rfDist = bigT.inputTreesToSuperTreeDistances(var.trees, doSd=True, doScqdist=False)
+                if sd == rfDist:
+                    pass
+                    #print "ok"
+                else:
+                    print "====================== differs ", sd, rfDist
                 
         
     

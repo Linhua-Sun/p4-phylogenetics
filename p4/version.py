@@ -1,6 +1,6 @@
-versionNumberString = '0.92'   # a string that can be turned into a number
+versionNumberString = '0.93'   # a string that can be turned into a number
 versionNumber = float(versionNumberString)
-versionNumberModifier = ' [2014.12.13]'    # a string
+versionNumberModifier = ' [2014.12.16]'    # a string
 versionString = '%s%s' % (versionNumberString, versionNumberModifier)
-dateString = "13 December, 2014"
+dateString = "16 December, 2014"
 
