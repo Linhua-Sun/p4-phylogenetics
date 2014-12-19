@@ -46,6 +46,8 @@ python setup.py build_ext --inplace
 and pay attention to any error messages as they fly by.  (Warnings are
 usually ok)
 
+On Ubuntu, I needed to add #include <cstddef> near the top of Tree.hpp.
+
 It might work.  If it does, you will get a module, scqdist.so, which
 you can put in your Python path.  Make sure that you can import it.
 
