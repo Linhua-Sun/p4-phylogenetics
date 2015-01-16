@@ -38,6 +38,11 @@ mess of files in this directory.  That is what you want, this time.
 Next step is to do "cmake ." (note the dot) on it, in order to make
 the file "include_blas.hpp", which is needed to include in Matrix.hpp.
 
+In a compile on a mac yosemite, I got an compile error from the
+include_blas.hpp, saying it could not find <vecLib/vBLAS.h>.  I
+replaced it with #include <Accelerate/Accelerate.h> and that seemed to
+work.
+
 Based on the main.cpp in the qdist src, I have made a file
 scqdistmodule.cpp, to make a Python module.  Do this ---
 
