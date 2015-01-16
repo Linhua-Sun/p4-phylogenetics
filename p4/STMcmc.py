@@ -8,6 +8,7 @@ import numpy as np
 from Glitch import Glitch
 from TreePartitions import TreePartitions
 from Constraints import Constraints
+from Tree import Tree
 import datetime
 
 try:
@@ -16,6 +17,27 @@ except ImportError:
     pass
 
 
+def choose(n, k):
+    """
+    A fast way to calculate binomial coefficients 
+    by Andrew Dalke (contrib).
+    """
+    if 0 <= k <= n:
+        ntok = 1
+        ktok = 1
+        for t in xrange(1, min(k, n - k) + 1):
+            ntok *= n
+            ktok *= t
+            n -= 1
+        return ntok // ktok
+    else:
+        return 0
+
+def nSplits(n):
+    mySum = 0
+    for k in range(2, n-1):
+        mySum += choose(n-1, k)
+    return mySum
 
 def bForN(n):
     prod = 1
@@ -164,6 +186,7 @@ class STChain(object):
         self.logPriorRatio = 0.0
 
         self.frrf = None
+        self.nInTreeSplits = 0
 
         if self.stMcmc.modelName.startswith('SR2008_rf'):
             self.curTree.beta = self.stMcmc.beta
@@ -181,13 +204,159 @@ class STChain(object):
                 self.getTreeLogLike_bitarray()
             
             self.curTree.logLike = self.propTree.logLike
+        elif self.stMcmc.modelName.startswith('SPA'):
+            self.curTree.spaQ= self.stMcmc.spaQ
+            self.propTree.spaQ = self.stMcmc.spaQ
+
+            for t in self.stMcmc.trees:
+                self.nInTreeSplits += len(t.splSet)
+            #print "Got nInTreeSplits %s" % self.nInTreeSplits
+            self.setupBitarrayCalcs()
+            self.getTreeLogLike_spa_bitarray()
+            self.curTree.logLike = self.propTree.logLike
         else:
             gm.append('Unknown modelName %s' % self.stMcmc.modelName)
             raise Glitch, gm
 
-        #print "STChain init()"
-        #self.curTree.draw()
-        #print "logLike is %f" % self.curTree.logLike
+        if 0:
+            print "STChain init()"
+            self.curTree.draw()
+            print "logLike is %f" % self.curTree.logLike
+
+    def getTreeLogLike_spa_bitarray(self):
+        gm = ["STChain.getTreeLogLike_spa_bitarray"]
+        if self.propTree.spaQ > 1. or self.propTree.spaQ <= 0.0:
+            gm.append("bad propTree.spaQ value %f" % self.propTree.spaQ)
+            raise Glitch, gm
+        slowCheck = False
+        if slowCheck:
+            slowCheckLogLike = 0.0
+            for it in self.stMcmc.trees:
+                it.makeSplitKeys()
+                it.skk =  [n.br.splitKey for n in it.iterInternalsNoRoot()]
+
+        self.propTree.logLike = 0.0
+        for it in self.stMcmc.trees:
+            if 0:
+                print "-" * 50
+                it.draw()
+                print "baTaxBits %s" % it.baTaxBits
+                print "firstTax at %i" % it.firstTax
+
+            if slowCheck:
+                stDupe = self.propTree.dupe()
+                toRemove = []
+                for n in stDupe.iterLeavesNoRoot():
+                    if n.name not in it.taxNames:
+                        toRemove.append(n)
+                for n in toRemove:
+                    stDupe.removeNode(n)
+                stDupe.taxNames = it.taxNames
+                stDupe.makeSplitKeys(makeNodeForSplitKeyDict=True)
+
+            # No need to consider (masked) splits with less than two
+            # 1s or more than it.nTax - 2 1s.  
+            upperGood = it.nTax - 2
+            relevantStSplits = []
+            for n in self.propTree.iterInternalsNoRoot():
+                # Choose which spl (spl or spl2) based on it.firstTax)
+                if n.ss.spl[it.firstTax]:
+                    n.ss.theSpl = n.ss.spl
+                else:
+                    n.ss.theSpl = n.ss.spl2
+                n.ss.maskedSplitWithTheFirstTaxOne = n.ss.theSpl & it.baTaxBits
+                n.ss.onesCount = n.ss.maskedSplitWithTheFirstTaxOne.count()
+                if 0:
+                    print "bigT node %i" % n.nodeNum
+                    print "  theSpl is %s" % n.ss.theSpl
+                    print "  maskedSplitWithTheFirstTaxOne %s" %  n.ss.maskedSplitWithTheFirstTaxOne
+                    print "  onesCount %i" % n.ss.onesCount
+                    if n.ss.onesCount >= 2 and n.ss.onesCount <= upperGood:
+                        print "    -> relevant"
+                    else:
+                        print "    -> not relevant"
+                if n.ss.onesCount >= 2 and n.ss.onesCount <= upperGood:
+                    relevantStSplits.append(n.ss)
+
+            nonRedundantStSplits = []
+            for ss in relevantStSplits:
+                alreadyIn = False
+                for ssB in nonRedundantStSplits:
+                    if ss.maskedSplitWithTheFirstTaxOne == ssB.maskedSplitWithTheFirstTaxOne:
+                        alreadyIn = True
+                        break
+                if alreadyIn == False:
+                    nonRedundantStSplits.append(ss)
+            if 0:
+                for ss in relevantStSplits:
+                    ss.dump()
+                print "There are %i relevant splits in the st for this it." % len(relevantStSplits)
+                for ss in nonRedundantStSplits:
+                    ss.dump()
+                print "There are %i non-redundant splits in the st for this it." % len(nonRedundantStSplits)
+
+
+            S_st = len(nonRedundantStSplits)  # S_st is the number of splits in the supertree
+            if slowCheck:
+                #stDupe.draw()
+                #print "the drawing above is stDupe"
+                slowCheckS_st = len([n for n in stDupe.iterInternalsNoRoot()])
+                assert S_st == slowCheckS_st
+                
+            S = nSplits(it.nTax)              # S is the number of possible splits in an it-sized tree
+            #print "S=%i, S_st=%i" % (S, S_st)
+            if S_st:
+                q = self.propTree.spaQ / S_st
+                R = 1. - self.propTree.spaQ
+                r = R/(S - S_st)
+                #print "q=%f" % q
+                logq = math.log(q)
+            else:
+                R = 1.
+                r = R/S
+            #print "r=%f" % r
+            logr = math.log(r)
+
+            # for ss in nonRedundantStSplits:
+            #     ss.bytes = ss.maskedSplitWithTheFirstTaxOne.tobytes()
+            #     ret = ss.bytes in it.splSet
+            #     if ret:
+            #         print "  iT has reduced split %s" % ss.bytes
+            #         self.propTree.logLike += logq
+            #     else:
+            #         print "  iT does not have reduced split %s" % ss.bytes
+            #         self.propTree.logLike += logr
+            mySSForBytesDict = {}
+            for ss in nonRedundantStSplits:
+                ss.bytes = ss.maskedSplitWithTheFirstTaxOne.tobytes()
+                mySSForBytesDict[ss.bytes] = ss
+            for spl in it.splSet:
+                ret = mySSForBytesDict.get(spl)
+                if ret:
+                    #print "  st has reduced split %s" % spl
+                    self.propTree.logLike += logq
+                else:
+                    #print "  st does not have reduced split %s" % spl
+                    self.propTree.logLike += logr
+                
+            
+            if slowCheck:
+                for sk in it.skk:
+                    ret = stDupe.nodeForSplitKeyDict.get(sk)
+                    if ret:
+                        slowCheckLogLike += logq
+                    else:
+                        slowCheckLogLike += logr
+
+                myDiff = self.propTree.logLike - slowCheckLogLike
+                if math.fabs(myDiff) > 1.e-12:
+                    gm.append("Bad like calc. slowCheck %f, bitarray %f, diff %g" % (
+                        slowCheckLogLike, self.propTree.logLike, myDiff))
+                    raise Glitch, gm
+            
+
+        
+
 
     def setupBitarrayCalcs(self):
         # Prepare self.propTree (ie bigT).  First make n.stSplitKeys.  These are temporary.
@@ -402,6 +571,405 @@ class STChain(object):
                 gm.append("Unknown model %s" % self.stMcmc.modelName)
                 raise Glitch, gm
 
+    def proposePolytomy(self, theProposal):
+        theProposal.doAbort = False
+        dbug = False
+        if dbug:
+            #print "proposePolytomy() starting with this tree ..."
+            #self.propTree.draw(width=80, addToBrLen=0.2)
+            print "j There are %i internal nodes." % self.propTree.nInternalNodes
+            if self.propTree.nInternalNodes == 1:
+                print "-> so its a star tree -> proposeDeleteEdge is not possible."
+            elif self.propTree.nInternalNodes == self.propTree.nTax - 2:
+                print "-> so its a fully-resolved tree, so proposeAddEdge is not possible."
+
+        if self.propTree.nInternalNodes == 1: # a star tree
+            self.proposeAddEdge(theProposal)
+        elif self.propTree.nInternalNodes == self.propTree.nTax - 2:
+            candidateNodes = self._getCandidateNodesForDeleteEdge()
+            if candidateNodes:
+                self.proposeDeleteEdge(theProposal, candidateNodes)
+            else:
+                #gm = ["proposePolytomy()"]
+                #gm.append("The tree is fully resolved, so I can't proposeAddEdge()")
+                #gm.append("But there are no suitable nodes to remove.")
+                #raise Glitch, gm
+                theProposal.doAbort = True
+                self.curTree._nInternalNodes = self.propTree._nInternalNodes
+                return
+        else:
+            r = random.random()
+            #r = 0.4
+            if r < 0.5:
+                self.proposeAddEdge(theProposal)
+            else:
+                candidateNodes = self._getCandidateNodesForDeleteEdge()
+                if candidateNodes:
+                    self.proposeDeleteEdge(theProposal, candidateNodes)
+                else:
+                    self.proposeAddEdge(theProposal)
+        #if self.mcmc.constraints:
+        #    print "checkSplitKeys() at the end of polytomy"
+        #    self.propTree.checkSplitKeys()
+    
+
+    def proposeAddEdge(self, theProposal):
+        gm = ["STChain.proposeAddEdge()"]
+        #print "proposeAddEdge() here"
+        dbug = False
+        pTree = self.propTree
+        if 0:
+            print "proposeAddEdge(), starting with this tree ..."
+            pTree.draw()
+            print "k There are %i internal nodes." % pTree.nInternalNodes
+            print "root is node %i" % pTree.root.nodeNum
+        allPolytomies = []
+        for n in pTree.iterInternalsNoRoot():
+            if n.getNChildren() > 2:
+                allPolytomies.append(n)
+        if pTree.root.getNChildren() > 3:
+            allPolytomies.append(pTree.root)
+
+        theChosenPolytomy = random.choice(allPolytomies)
+
+        # We want to choose one of the possible ways to add a node.  See
+        # Lewis et al page 246, left top.  "The number of distinct ways of
+        # dividing k edges into two groups, making sure that at least 3
+        # edges are attached to each node afterwards, is 2^{k-1} - k - 1".
+        # For non-root polytomies (with 3 or more children), it is
+        # straightforward, but for root polytomies (ie with 4 or more
+        # children) it is different.  I think in the case of root
+        # polytomies that they will be equivalent to non-root polytomies
+        # if I arbitrarily consider one randomly chosen child node to
+        # take the role that the parent takes in the non-root-polytomies.
+        # So a 4-child root will be considered to have a parent-like node
+        # and 3 children.
+        if theChosenPolytomy != pTree.root:
+            nChildren = theChosenPolytomy.getNChildren()
+            k = nChildren + 1
+            childrenNodeNums = pTree.getChildrenNums(theChosenPolytomy) 
+        else:
+            # Its the root.  So we say that a random child takes the role
+            # of the "parent", for purposes of these calculations.
+            nChildren = theChosenPolytomy.getNChildren() - 1  # n - 1 children
+            k = nChildren + 1
+            childrenNodeNums = pTree.getChildrenNums(theChosenPolytomy) # Yes, all children.
+
+        nPossibleWays = math.pow(2, k-1) - k - 1
+        if dbug:
+            print "These nodes are polytomies: %s" % [n.nodeNum for n in allPolytomies]
+            print "We randomly choose to do node %i" % theChosenPolytomy.nodeNum
+            print "It has %i children, so k=%i, so there are %i possible ways to add a node." % (
+                nChildren, k, nPossibleWays)
+
+        # We want to choose one of the possible ways to add a node, but we
+        # want to choose it randomly.  I'll describe it for the case with
+        # nChildren=5, so k is 6.  We know already that there are
+        # nPossibleWays=25 different ways to add a node.  The complication
+        # is that we could make a new group of 2, 3, or 4 nInNewGroup, and it will be
+        # different numbers of possible ways in each.  The numbers of each are given by
+        # func.nChoosek(), so there are 10 ways to make a group of 2 from 5
+        # children, 10 ways to make a group of 3 from 5 children, and 5
+        # ways to make a group of 4 from 5 children.  So thats [10, 10,
+        # 5], which sums to 25 (nPossibleWays).  So we can make a
+        # cumulative sum list ie [10, 20, 25], and use it to choose one
+        # group randomly.
+        nChooseKs = []
+        for i in range(2, nChildren):
+            nChooseKs.append(func.nChooseK(nChildren, i))
+        cumSum = [nChooseKs[0]]
+        for i in range(len(nChooseKs))[1:]:
+            cumSum.append(nChooseKs[i] + cumSum[i-1])
+        ran = random.randrange(nPossibleWays)
+        for i in range(len(cumSum)):
+            if ran < cumSum[i]:
+                break
+        nInNewGroup = i + 2
+        # Ok, so we have decided that of the nChildren of
+        # theChosenPolytomy, we will make a new node with a group of
+        # nInNewGroup of them.  For that, we can use random.sample().
+        newChildrenNodeNums = random.sample(childrenNodeNums, nInNewGroup)
+
+
+        if dbug:
+            print "The nChooseKs are %s" % nChooseKs
+            print "The cumSum is %s" % cumSum
+            print "Since there are nPossibleWays=%i, we choose a random number from 0-%i" % (
+                nPossibleWays, nPossibleWays-1)
+            print "->We chose a random number: %i" % ran
+            print "So we choose the group at index %i, which means nInNewGroup=%i" % (i, nInNewGroup)
+            print "So we make a new node with newChildrenNodeNums %s" % newChildrenNodeNums
+            #sys.exit()
+
+        # Choose to add a node between theChosenPolytomy and the first in
+        # the list of newChildrenNodeNums.  The node that we add will be
+        # chosen from pTree.nodes for the first node where both the parent
+        # and the leftChild are None.
+        firstNode = pTree.nodes[newChildrenNodeNums[0]]
+        for newNode in pTree.nodes:
+            if not newNode.parent and not newNode.leftChild:
+                break
+        #print "Got newNode = %i" % newNode.nodeNum
+
+        # Add the newNode between theChosenPolytomy and firstNode
+        newNode.parent = theChosenPolytomy
+        newNode.leftChild = firstNode
+        firstNode.parent = newNode
+        if theChosenPolytomy.leftChild == firstNode:
+            theChosenPolytomy.leftChild = newNode
+        else:
+            oldCh = theChosenPolytomy.leftChild
+            while oldCh.sibling != firstNode:
+                oldCh = oldCh.sibling
+            oldCh.sibling = newNode
+        if firstNode.sibling:
+            newNode.sibling = firstNode.sibling
+            firstNode.sibling = None
+        pTree.setPreAndPostOrder()
+        pTree._nInternalNodes += 1
+
+        if 0:
+            #pTree.setPreAndPostOrder()
+            pTree.draw()
+
+        for nodeNum in newChildrenNodeNums[1:]:
+            n = pTree.pruneSubTreeWithoutParent(nodeNum)
+            pTree.reconnectSubTreeWithoutParent(n, newNode)
+
+
+        # Calculate the rawSplitKey and splitKey.
+        # if self.mcmc.constraints:
+        #     children = [n for n in newNode.iterChildren()]
+        #     x = children[0].br.rawSplitKey
+        #     for n in children[1:]:
+        #         y = n.br.rawSplitKey
+        #         x = x | y  # '|' is bitwise "OR".
+        #     newNode.br.rawSplitKey = x
+        #     if 1 & newNode.br.rawSplitKey: # Ie "Does rawSplitKey contain a 1?" or "Is rawSplitKey odd?"
+        #         if self.mcmc.constraints:
+        #             newNode.br.splitKey = self.mcmc.constraints.allOnes ^ newNode.br.rawSplitKey # "^" is xor, a bit-flipper.
+        #         else:
+        #             allOnes = 2L**(self.propTree.nTax) - 1
+        #             newNode.br.splitKey = allOnes ^ newNode.br.rawSplitKey
+        #     else:
+        #         newNode.br.splitKey = newNode.br.rawSplitKey
+
+        # Its a newly-added node, possibly in a new context.  We need to
+        # deal with model stuff if it isHet.  The model.isHet if any part
+        # isHet.
+        if dbug:
+            pTree.setPreAndPostOrder()
+            pTree.draw()
+
+        # Now the Hastings ratio.  First calculate gamma_B.  If the
+        # current tree is a star tree (nInternalNodes == 1) and the
+        # proposed tree is not fully resolved (ie is less than
+        # len(self.propTree.nodes) - 2), then gamma_B is 0.5.
+        if (self.curTree.nInternalNodes == 1) and (pTree.nInternalNodes < (len(pTree.nodes) - 2)):
+            gamma_B = 0.5
+        # If the proposed tree is fully resolved and the current tree is not the star tree
+        elif (pTree.nInternalNodes == (len(pTree.nodes) - 2)) and (self.curTree.nInternalNodes > 1):
+            gamma_B = 2.0
+        else:
+            gamma_B = 1.0
+
+        # n_e is number of internal edges present before the Add-edge move.  That would be self.curTree.nInternalNodes - 1
+        n_e = float(self.curTree.nInternalNodes - 1)
+        # n_p is the number of polytomies present before the move, len(allPolytomies)
+        n_p = float(len(allPolytomies))
+        hastingsRatio = (gamma_B * n_p * float(nPossibleWays)) / (1.0 + n_e)
+
+        if dbug:
+            print "The new node is given a random branch length of %f" % newNode.br.len
+            print "For the Hastings ratio ..."
+            print "gamma_B is %.1f" % gamma_B
+            print "n_e is %.0f" % n_e
+            print "k is (still) %i, and (2^{k-1} - k - 1) = nPossibleWays is still %i" % (k, nPossibleWays)
+            print "n_p = %.0f is the number of polytomies present before the move." % n_p
+            print "So the hastings ratio is %f" % hastingsRatio
+
+        self.logProposalRatio = math.log(hastingsRatio)
+
+
+        if 0:
+            priorRatio = self.mcmc.tunings.brLenPriorLambda * math.exp(- self.mcmc.tunings.brLenPriorLambda * newNode.br.len)
+            if dbug:
+                print "The self.mcmc.tunings.brLenPriorLambda is %f" % self.mcmc.tunings.brLenPriorLambda
+                print "So the prior ratio is %f" % priorRatio
+
+            self.logPriorRatio = math.log(priorRatio)
+
+            # The Jacobian
+            jacobian = 1.0 / (self.mcmc.tunings.brLenPriorLambda * math.exp(- self.mcmc.tunings.brLenPriorLambda * newNode.br.len))
+            self.logJacobian = math.log(jacobian)
+            print "logPriorRatio = %f, logJacobian = %f" % (self.logPriorRatio, self.logJacobian)
+
+        # Here I pull a fast one, as explained in Lewis et al.  The
+        # priorRatio and the Jacobian terms cancel out.  So the logs might
+        # as well be zeros.
+        self.logPriorRatio = 0.0
+        #self.logJacobian = 0.0
+        # That was easy, wasn't it?
+        if self.stMcmc.tunings.doPolytomyResolutionClassPrior:
+            # We are gaining a node.  So the prior ratio is T_{n,m + 1} /
+            # (T_{n,m} * C) .  We have the logs, and the result is the
+            # log.
+            if 0:
+                print "-" * 30
+                print 'curTree.nInternalNodes', self.curTree.nInternalNodes
+                print 'pTree.nInternalNodes', pTree.nInternalNodes
+                print 'logBigT[curTree.nInternalNodes]', theProposal.logBigT[self.curTree.nInternalNodes]
+                #print math.exp(theProposal.logBigT[self.curTree.nInternalNodes])
+                print 'C ', self.stMcmc.tunings.polytomyPriorLogBigC
+                print 'logBigT[pTree.nInternalNodes]', theProposal.logBigT[pTree.nInternalNodes]
+                #print math.exp(theProposal.logBigT[pTree.nInternalNodes])
+                print "-" * 30
+            self.logPriorRatio = (theProposal.logBigT[self.curTree.nInternalNodes] -
+                                  (self.stMcmc.tunings.polytomyPriorLogBigC +
+                                  theProposal.logBigT[pTree.nInternalNodes]))
+
+        else:
+            if self.stMcmc.tunings.polytomyPriorLogBigC:
+                self.logPriorRatio =  -self.stMcmc.tunings.polytomyPriorLogBigC
+            else:
+                self.logPriorRatio = 0.0
+        #print "gaining a node, m %2i->%2i. logPriorRatio is %f" % (self.curTree.nInternalNodes,
+        #                                                              pTree.nInternalNodes, self.logPriorRatio)
+
+
+    def _getCandidateNodesForDeleteEdge(self):
+        pTree = self.propTree
+        nodesWithInternalEdges = [n for n in pTree.iterInternalsNoRoot()]
+
+        # Remove any that might violate constraints.
+        # if self.mcmc.constraints:
+        #     nodesToRemove = []
+        #     for n in nodesWithInternalEdges:
+        #         if n.br.splitKey in self.mcmc.constraints.constraints:
+        #             nodesToRemove.append(n)
+        #     for n in nodesToRemove:
+        #         nodesWithInternalEdges.remove(n)
+
+        return nodesWithInternalEdges
+
+    def proposeDeleteEdge(self, theProposal, candidateNodes):
+
+        dbug = False
+        pTree = self.propTree
+        #print "doing proposeDeleteEdge()"
+        if 0:
+            print "proposeDeleteEdge(), starting with this tree ..."
+            pTree.draw()
+            print "m There are %i internal nodes (before deleting the edge)." % pTree.nInternalNodes
+
+        if not candidateNodes:
+            raise Glitch, "proposeDeleteEdge() could not find a good node to attempt to delete."
+
+        theChosenNode = random.choice(candidateNodes)
+        if dbug:
+            print "There are %i candidateNodes." % len(candidateNodes)
+            print "node nums %s" % [n.nodeNum for n in candidateNodes]
+            print "Randomly choose node %s" % theChosenNode.nodeNum
+
+
+
+        theNewParent = theChosenNode.parent
+        theRightmostChild = theChosenNode.rightmostChild()
+        theLeftSib = theChosenNode.leftSibling()
+        if theLeftSib:
+            theLeftSib.sibling = theChosenNode.leftChild
+        else:
+            theNewParent.leftChild = theChosenNode.leftChild
+        for n in theChosenNode.iterChildren():
+            n.parent = theNewParent
+        theRightmostChild.sibling = theChosenNode.sibling
+        theChosenNode.wipe()
+        pTree.setPreAndPostOrder()
+        pTree._nInternalNodes -= 1
+        #print pTree.preOrder
+        #if dbug:
+        #    pTree.draw()
+
+
+        # Hastings ratio.  First calculate the gamma_D.  If the current
+        # tree is fully resolved and the proposed tree is not the star
+        # tree, then gamma_D is 0.5
+        if (self.curTree.nInternalNodes == len(pTree.nodes) - 2) and pTree.nInternalNodes != 1:
+            gamma_D = 0.5
+        # If the proposed tree is the star tree and the current tree is not fully resolved
+        elif (self.curTree.nInternalNodes < len(pTree.nodes) - 2) and pTree.nInternalNodes == 1:
+            gamma_D = 2.
+        else:
+            gamma_D = 1.
+
+        # n_e is the number of internal edges in existence before the move, which would be nInternalNodes - 1
+        n_e = float(self.curTree.nInternalNodes - 1)
+        # nStar_p is the number of polytomies in the tree after the move.
+        nStar_p = 0
+        for n in pTree.iterInternalsNoRoot():
+            if n.getNChildren() > 2:
+                nStar_p += 1
+        if pTree.root.getNChildren() > 3:
+            nStar_p += 1
+        nStar_p = float(nStar_p)
+        # kStar is the number of edges emanating from the polytomy created (or enlarged) by the move.
+        kStar = theNewParent.getNChildren()
+        if theNewParent.parent:
+            kStar += 1
+
+        hastingsRatio = (gamma_D * n_e) / (nStar_p * (2**(kStar - 1) - kStar - 1))
+        self.logProposalRatio = math.log(hastingsRatio)
+
+        if 0:
+            # Now the prior ratio.  The prior probability density f(nu) for a
+            # branch length is lambda * exp(-lambda * nu).  To a first
+            # approximation, with equal priors on topologies, the prior ratio
+            # is 1/f(nu)
+            priorRatio = 1.0/(self.mcmc.tunings.brLenPriorLambda * math.exp(- self.mcmc.tunings.brLenPriorLambda * theChosenNode.br.len))
+            if dbug:
+                print "The self.mcmc.tunings.brLenPriorLambda is %f" % self.mcmc.tunings.brLenPriorLambda
+                print "So the prior ratio is %f" % priorRatio
+
+            self.logPriorRatio = math.log(priorRatio)    
+
+            # The Jacobian
+            jacobian = self.mcmc.tunings.brLenPriorLambda * math.exp(- self.mcmc.tunings.brLenPriorLambda * theChosenNode.br.len)
+            self.logJacobian = math.log(jacobian)
+            print "logPriorRatio = %f, logJacobian = %f" % (self.logPriorRatio, self.logJacobian)
+
+        # Here I pull a fast one, as explained in Lewis et al.  The
+        # priorRatio and the Jacobian terms cancel out.  So the logs might
+        # as well be zeros.
+        self.logPriorRatio = 0.0
+        #self.logJacobian = 0.0
+        # That was easy, wasn't it?
+
+        if self.stMcmc.tunings.doPolytomyResolutionClassPrior:
+            # We are losing a node.  So the prior ratio is (T_{n,m} * C) /
+            # T_{n,m - 1}.  We have the logs, and the result is the log.
+            if 0:
+                print "-" * 30
+                print 'curTree.nInternalNodes', self.curTree.nInternalNodes
+                print 'pTree.nInternalNodes', pTree.nInternalNodes
+                print 'logBigT[curTree.nInternalNodes]', theProposal.logBigT[self.curTree.nInternalNodes]
+                #print math.exp(theProposal.logBigT[self.curTree.nInternalNodes])
+                print 'C ', self.stMcmc.tunings.polytomyPriorLogBigC
+                print 'logBigT[pTree.nInternalNodes]', theProposal.logBigT[pTree.nInternalNodes]
+                #print math.exp(theProposal.logBigT[pTree.nInternalNodes])
+                print "-" * 30
+            self.logPriorRatio = ((theProposal.logBigT[self.curTree.nInternalNodes] +
+                                   self.stMcmc.tunings.polytomyPriorLogBigC) -
+                                  theProposal.logBigT[pTree.nInternalNodes])
+
+        else:
+            if self.stMcmc.tunings.polytomyPriorLogBigC:
+                self.logPriorRatio =  self.stMcmc.tunings.polytomyPriorLogBigC
+            else:
+                self.logPriorRatio = 0.0
+
+        #print " losing a node, m %2i->%2i. logPriorRatio is %f" % (self.curTree.nInternalNodes,
+        #                                                           pTree.nInternalNodes, self.logPriorRatio)
+
         
         
     def propose(self, theProposal):
@@ -445,14 +1013,32 @@ class STChain(object):
             self.propTree.beta = mt
             self.logProposalRatio = 0.0
             self.logPriorRatio = 0.0
+        elif theProposal.name == 'spaQ_uniform':
+            mt = self.propTree.spaQ
 
-            pass
-        # elif theProposal.name == 'polytomy':
-        #     self.proposePolytomy(theProposal)
-        #     if not self.propTree.preAndPostOrderAreValid:
-        #         self.propTree.setPreAndPostOrder()
-        #     self.propTree.setCStuff()
-        #     pf.p4_setPrams(self.propTree.cTree, -1)
+            # Slider proposal
+            mt += (random.random() - 0.5) * theProposal.tuning
+
+            # Linear reflect
+            isGood = False
+            myMIN = 1.e-10
+            myMAX = 1.
+            while not isGood:
+                if mt < myMIN:
+                    mt = (myMIN - mt) + myMIN
+                elif mt > myMAX:
+                    mt = myMAX - (mt - myMAX)
+                else:
+                    isGood = True
+            self.propTree.spaQ = mt
+            self.logProposalRatio = 0.0
+            self.logPriorRatio = 0.0
+
+        elif theProposal.name == 'polytomy':
+            self.proposePolytomy(theProposal)
+            if not self.propTree.preAndPostOrderAreValid:
+                self.propTree.setPreAndPostOrder()
+            #self.propTree.draw()
             
         else:
             gm.append('Unlisted proposal.name=%s  Fix me.' % theProposal.name)
@@ -470,15 +1056,25 @@ class STChain(object):
                 elif self.stMcmc.stRFCalc == 'bitarray':
                     self.refreshBitarrayPropTree()
                     self.getTreeLogLike_bitarray()
+            elif self.stMcmc.modelName == 'SPA':
+                self.refreshBitarrayPropTree()
+                self.getTreeLogLike_spa_bitarray()
+                #pass
             else:
                 gm.append('Unknown model %s' % self.stMcmc.modelName)
                 raise Glitch, gm
 
-            #print "propTree logLike is", self.propTree.logLike
+            #if theProposal.name == 'polytomy':
+            #print "propTree logLike is %f, curTree logLike is %f" % (
+            #    self.propTree.logLike, self.curTree.logLike)
 
             logLikeRatio = self.propTree.logLike - self.curTree.logLike
+            #logLikeRatio = 0.0
 
             theSum = logLikeRatio + self.logProposalRatio + self.logPriorRatio
+            #theSum = self.logProposalRatio + self.logPriorRatio
+            #if theProposal.name == 'polytomy':
+            #    print "%f  %f  %f  %f" % (theSum, logLikeRatio, self.logProposalRatio, self.logPriorRatio)
             return theSum
 
     
@@ -490,6 +1086,7 @@ class STChain(object):
 
         acceptMove = False
 
+        #print "Doing %s" % aProposal.name
         pRet = self.propose(aProposal)
 
         #print "pRet = %.6f" % pRet,
@@ -505,8 +1102,10 @@ class STChain(object):
                 acceptMove = True
             elif random.random() < r:
                 acceptMove = True
-
+        
+        #if aProposal.name == 'polytomy':
         #print "acceptMove = %s" % acceptMove
+        #print "------------"
 
         aProposal.nProposals[self.tempNum] += 1
         if acceptMove:
@@ -522,12 +1121,15 @@ class STChain(object):
             b = self.propTree
 
 
-        if aProposal.name in ['nni', 'spr']:
+        if aProposal.name in ['nni', 'spr', 'polytomy']:
             b.logLike = a.logLike
             a.copyToTree(b)
         elif aProposal.name in ['SR2008beta_uniform']:
             b.logLike = a.logLike
             b.beta = a.beta
+        elif aProposal.name in ['spaQ_uniform']:
+            b.logLike = a.logLike
+            b.spaQ = a.spaQ
 
         else:
             gm.append('Unlisted proposal.name = %s  Fix me.' % aProposal.name)
@@ -547,6 +1149,9 @@ class STMcmcTunings(object):
         object.__setattr__(self, 'nni', None)  
         object.__setattr__(self, 'spr', None)  
         object.__setattr__(self, 'SR2008beta_uniform', 0.2)  
+        object.__setattr__(self, 'spaQ_uniform', 0.1)  
+        object.__setattr__(self, 'doPolytomyResolutionClassPrior', False)
+        object.__setattr__(self, 'polytomyPriorLogBigC', 0.0)
 
 
     def __setattr__(self, item, val):
@@ -568,6 +1173,7 @@ class STMcmcTunings(object):
         lst.append("%s%20s: %s" % (spacer, 'nni', self.nni))
         lst.append("%s%20s: %s" % (spacer, 'spr', self.spr))
         lst.append("%s%20s: %s" % (spacer, 'SR2008beta_uniform', self.SR2008beta_uniform))
+        lst.append("%s%20s: %s" % (spacer, 'spaQ_uniform', self.SR2008beta_uniform))
         return string.join(lst, '\n')
 
     def dump(self):
@@ -600,6 +1206,8 @@ class STMcmcProposalProbs(dict):
         object.__setattr__(self, 'nni', 1.0)
         object.__setattr__(self, 'spr', 1.0)
         object.__setattr__(self, 'SR2008beta_uniform', 1.0)
+        object.__setattr__(self, 'spaQ_uniform', 1.0)
+        object.__setattr__(self, 'polytomy', 0.0)
 
 
     def __setattr__(self, item, val):
@@ -661,7 +1269,7 @@ class STProposal(object):
         print "    nAcceptances by temperature:  %s" % self.nAcceptances
         
     def _getTuning(self):
-        if self.name in ['nni', 'spr', 'SR2008beta_uniform']:
+        if self.name in ['nni', 'spr', 'SR2008beta_uniform', 'spaQ_uniform']:
             #print "getting tuning for %s, returning %f" % (self.name, getattr(self.mcmc.tunings, self.name))
             #print self.stMcmc.tunings
             return getattr(self.stMcmc.tunings, self.name)
@@ -830,36 +1438,55 @@ See :class:`TreePartitions`.
     """
 
     
-    def __init__(self, inTrees, modelName='SR2008_rf_aZ', beta=1.0, stRFCalc='purePython1', runNum=0, sampleInterval=100, checkPointInterval=None):
+    def __init__(self, inTrees, bigT=None, modelName='SR2008_rf_aZ', beta=1.0, spaQ=0.5, stRFCalc='purePython1', runNum=0, sampleInterval=100, checkPointInterval=None):
         gm = ['STMcmc.__init__()']
 
-        goodModelNames = ['SR2008_rf_ia', 'SR2008_rf_aZ', 'SR2008_rf_aZ_fb']
+        assert inTrees
+        for t in inTrees:
+            assert isinstance(t, Tree)
+        if bigT:
+            assert isinstance(bigT, Tree)
+            assert bigT.taxNames
+            bigT.stripBrLens()
+
+
+        goodModelNames = ['SR2008_rf_ia', 'SR2008_rf_aZ', 'SR2008_rf_aZ_fb', 'SPA']
         if modelName not in goodModelNames:
             gm.append("Arg modelName '%s' is not recognized. " % modelName)
             gm.append("Good modelNames are %s" % goodModelNames)
             raise Glitch, gm
         self.modelName = modelName
 
-        try:
-            fBeta = float(beta)
-        except ValueError:
-            gm.append("Arg beta (%s) should be a float" % beta)
-            raise Glitch, gm
-        self.beta = fBeta
-
-        for t in inTrees:
-            if t.isFullyBifurcating():
-                pass
-            else:
-                gm.append("At the moment STMcmc wants trees that are fully bifurcating.")
+        self.stRFCalc = None
+        if modelName.startswith("SR2008"):
+            try:
+                fBeta = float(beta)
+            except ValueError:
+                gm.append("Arg beta (%s) should be a float" % beta)
                 raise Glitch, gm
+            self.beta = fBeta
 
-        goodSTRFCalcNames = ['purePython1', 'bitarray', 'fastReducedRF']
-        if stRFCalc not in goodSTRFCalcNames:
-            gm.append("Arg stRFCalc '%s' is not recognized. " % modelName)
-            gm.append("Good stRFCalc names are %s" % goodSTRFCalcNames)
-            raise Glitch, gm
-        self.stRFCalc = stRFCalc
+            for t in inTrees:
+                if t.isFullyBifurcating():
+                    pass
+                else:
+                    gm.append("At the moment STMcmc wants trees that are fully bifurcating.")
+                    raise Glitch, gm
+
+            goodSTRFCalcNames = ['purePython1', 'bitarray', 'fastReducedRF']
+            if stRFCalc not in goodSTRFCalcNames:
+                gm.append("Arg stRFCalc '%s' is not recognized. " % modelName)
+                gm.append("Good stRFCalc names are %s" % goodSTRFCalcNames)
+                raise Glitch, gm
+            self.stRFCalc = stRFCalc
+
+        if modelName.startswith("SPA"):
+            try:
+                fspaQ = float(spaQ)
+            except ValueError:
+                gm.append("Arg spaQ (%s) should be a float" % spaQ)
+                raise Glitch, gm
+            self.spaQ = fspaQ
 
         nChains = 1 # mcmcmc is off, temporarily
         try:
@@ -934,7 +1561,7 @@ See :class:`TreePartitions`.
         self.treeFileName = "mcmc_trees_%i.nex" % runNum
         self.pramsFileName = "mcmc_prams_%i" % runNum
         self.writePrams = False
-        if self.modelName in ['SR2008_rf_aZ_fb']:
+        if self.modelName in ['SR2008_rf_aZ_fb', "SPA"]:
             self.writePrams = True
 
         self.lastTimeCheck = None
@@ -948,23 +1575,30 @@ See :class:`TreePartitions`.
 
         self.tunings = STMcmcTunings() 
         self.prob = STMcmcProposalProbs()                
+        if self.modelName == 'SPA':
+            self.prob.polytomy = 1.0
+            self.prob.spr = 0.0
                 
         # Zap internal node names
         # for n in aTree.root.iterInternals():
         #     if n.name:
         #         n.name = None
 
-        allNames = []
-        for t in inTrees:
-            t.unsorted_taxNames = [n.name for n in t.iterLeavesNoRoot()]
-            allNames += t.unsorted_taxNames          # Efficient?  Probably does not matter.
-        self.taxNames = list(set(allNames))
-        self.taxNames.sort()                         # not needed, but nice for debugging
+        if not bigT:
+            allNames = []
+            for t in inTrees:
+                t.unsorted_taxNames = [n.name for n in t.iterLeavesNoRoot()]
+                allNames += t.unsorted_taxNames          # Efficient?  Probably does not matter.
+            self.taxNames = list(set(allNames))
+            self.taxNames.sort()                         # not needed, but nice for debugging
+        else:
+            for t in inTrees:
+                t.unsorted_taxNames = [n.name for n in t.iterLeavesNoRoot()]
+            self.taxNames = bigT.taxNames
         #print self.taxNames
         self.nTax = len(self.taxNames)
 
-
-        if self.stRFCalc == 'bitarray':
+        if self.modelName=='SPA' or self.stRFCalc == 'bitarray':
             #print "self.taxNames = ", self.taxNames
             for t in inTrees:
                 #print "-" * 50
@@ -1014,8 +1648,7 @@ See :class:`TreePartitions`.
                         #print "inverting and and-ing node %i stSplitKey to %s" % (n.nodeNum, n.stSplitKey)
                     t.splSet.add(n.stSplitKey.tobytes()) # bytes so that I can use it as a set element
 
-        else:
-            assert self.stRFCalc in ['purePython1', 'fastReducedRF']
+        elif self.stRFCalc in ['purePython1', 'fastReducedRF']:
             for t in inTrees:
                 sorted_taxNames = []
                 t.taxBits = 0L
@@ -1031,25 +1664,29 @@ See :class:`TreePartitions`.
                 t.skSet = set([n.br.splitKey for n in t.iterInternalsNoRoot()])
 
         self.trees = inTrees
-        self.tree = func.randomTree(taxNames=self.taxNames, name='stTree', randomBrLens=False)
+        if bigT:
+            self.tree = bigT
+        else:
+            self.tree = func.randomTree(taxNames=self.taxNames, name='stTree', randomBrLens=False)
         if self.stRFCalc in  ['purePython1', 'fastReducedRF']:
             self.tree.makeSplitKeys()
 
-        self.Frrf = None
-        if self.stRFCalc == 'fastReducedRF':
-            try:
-                import fastReducedRF
-                self.Frrf = fastReducedRF.Frrf
-                import pyublas # not explicitly used--but makes converters available
-            except ImportError:
-                gm.append("var.stRFCalc is set to 'fastReducedRF', but I could not import")
-                gm.append("at least one of fastReducedRF or pyublas.")
-                gm.append("Make sure they are installed.")
-                raise Glitch, gm
+            self.Frrf = None
+            if self.stRFCalc == 'fastReducedRF':
+                try:
+                    import fastReducedRF
+                    self.Frrf = fastReducedRF.Frrf
+                    import pyublas # not explicitly used--but makes converters available
+                except ImportError:
+                    gm.append("var.stRFCalc is set to 'fastReducedRF', but I could not import")
+                    gm.append("at least one of fastReducedRF or pyublas.")
+                    gm.append("Make sure they are installed.")
+                    raise Glitch, gm
 
         print "Initializing STMcmc"
         print "%-10s: %s" % ('modelName', modelName)
-        print "%-10s: %s" % ('stRFCalc', self.stRFCalc)
+        if self.modelName.startswith("SR2008"):
+            print "%-10s: %s" % ('stRFCalc', self.stRFCalc)
         print "%-10s: %s" % ('inTrees', len(self.trees))
         print "%-10s: %s" % ('nTax', self.nTax)
 
@@ -1081,6 +1718,20 @@ See :class:`TreePartitions`.
                 p.weight = self.prob.SR2008beta_uniform # * (len(self.tree.nodes) - 1) * fudgeFactor['nni']
                 self.proposals.append(p)
                 #object.__setattr__(self.tuningsUsage, 'local', p)
+
+        if self.modelName in ['SPA']:
+            if self.prob.spaQ_uniform:
+                p = STProposal(self)
+                p.name = 'spaQ_uniform'
+                p.weight = self.prob.spaQ_uniform # * (len(self.tree.nodes) - 1) * fudgeFactor['nni']
+                self.proposals.append(p)
+                #object.__setattr__(self.tuningsUsage, 'local', p)
+            if self.prob.polytomy:
+                p = STProposal(self)
+                p.name = 'polytomy'
+                p.weight = self.prob.polytomy
+                self.proposals.append(p)
+                
 
 
         if not self.proposals:
@@ -1437,7 +2088,10 @@ See :class:`TreePartitions`.
                     #     self.writePrams = False
                     # else:
                     pramsFile = file(self.pramsFileName, 'a')
-                    pramsFile.write("    genPlus1     beta\n")
+                    if self.modelName.startswith("SR2008"):
+                        pramsFile.write("    genPlus1     beta\n")
+                    elif self.modelName.startswith("SPA"):
+                        pramsFile.write("    genPlus1     spaQ\n")
                     pramsFile.close()
                 sys.stdout.flush()
             
@@ -1487,12 +2141,12 @@ See :class:`TreePartitions`.
                                 break
                         aProposal = self.proposals[i]
                         gotIt = True
-                        if aProposal.name == 'local':
-                            if self.chains[chNum].curTree.nInternalNodes == 1:  # Can't do local on a star tree.
-                                aProposal = self.proposalsHash['brLen']
-                        elif aProposal.name == 'root3':
-                            if self.chains[chNum].curTree.nInternalNodes == 1:  # Can't do root3 on a star tree.
-                                gotIt = False
+                        if aProposal.name == 'nni':
+                            if self.chains[chNum].curTree.nInternalNodes == 1:  # Can't do nni on a star tree.
+                                aProposal = self.proposalsHash['polytomy']
+                        #elif aProposal.name == 'root3':
+                        #    if self.chains[chNum].curTree.nInternalNodes == 1:  # Can't do root3 on a star tree.
+                        #        gotIt = False
                         if aProposal.doAbort:
                             gotIt = False
                         safety += 1
@@ -1598,7 +2252,10 @@ See :class:`TreePartitions`.
                     pramsFile = file(self.pramsFileName, 'a')
                     #pramsFile.write("%12i " % (self.gen + 1))
                     pramsFile.write("%12i" % (self.gen + 1))
-                    pramsFile.write("  %f\n" % self.chains[coldChainNum].curTree.beta)
+                    if self.modelName.startswith("SR2008"):
+                        pramsFile.write("  %f\n" % self.chains[coldChainNum].curTree.beta)
+                    elif self.modelName.startswith("SPA"):
+                        pramsFile.write("  %f\n" % self.chains[coldChainNum].curTree.spaQ)
                     pramsFile.close()
 
                 # Do a simulation
