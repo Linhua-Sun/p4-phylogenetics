@@ -367,6 +367,8 @@ class Trees(object):
         supertree distances from a set of input trees to a single
         Tree.  This Trees method does the same for a bunch of trees,
         outputting the results in a table.
+
+        And it returns the results as a list of lists as well.
         """
         nn = []
         sdd = []
@@ -402,15 +404,18 @@ class Trees(object):
             sig = "%s & %s & %s \\\\" % (name_sig, sd_sig, qd_sig)
         else:
             sig = "%s %s  %s" % (name_sig, sd_sig, qd_sig)
+        results = []
         for tNum in range(len(self.trees)):
             nm = nn[tNum]
             sd = sdd[tNum]
             qd = qdd[tNum]
             print sig % (nm, sd, qd)
+            results.append([nm, sd, qd])
         if latex:
             print "\\bottomrule"
             print "\\end{tabular}"
             print "\\end{center}"
+        return results
 
     def treeProbabilities(self, writeNexus=False):
         """Order the trees in self by frequency of occurrence.
