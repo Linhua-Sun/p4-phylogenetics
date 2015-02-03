@@ -2332,7 +2332,7 @@ def inputTreesToSuperTreeDistances(self, inputTrees, doSd=True, doScqdist=True):
             sDupe.removeNode(n)
         sDupe.taxNames = inTree.taxNames
         if doSd:
-            rfDist = sDupe.topologyDistance(inTree, metric='sd')
+            rfDist = sDupe.topologyDistance(inTree, metric='sd', resetSplitKeySet=True)
             totalSd += rfDist
         if doScqdist:
             qd = sDupe.topologyDistance(inTree, metric='scqdist')
