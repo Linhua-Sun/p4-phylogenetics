@@ -2639,7 +2639,8 @@ class Tree(object):
             try:
                 import scqdist
             except ImportError:
-                gm.append("Could not find the experimental 'scqdist' module needed for this metric.")
+                gm.append("Could not find the 'scqdist' module needed for this metric.")
+                gm.append("See the instructions for making it in the p4 source, in the Qdist directory.")
                 raise Glitch, gm
             tsSelf = self.writeNewick(toString=True)
             tsTree2 = tree2.writeNewick(toString=True)
@@ -2663,8 +2664,10 @@ class Tree(object):
         # So store it as a Tree.attribute.
 
         if resetSplitKeySet:
-            del(self.splitKeySet)
-            del(tree2.splitKeySet)
+            if hasattr(self, 'splitKeySet'):
+                del(self.splitKeySet)
+            if hasattr(tree2, 'splitKeySet'):
+                del(tree2.splitKeySet)
 
         if not hasattr(self, 'splitKeySet'):
             self.makeSplitKeys()
