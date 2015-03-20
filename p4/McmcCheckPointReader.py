@@ -145,15 +145,18 @@ class McmcCheckPointReader(object):
         if ret != []:
             sumOfStdDevs = 0.0
             nSplits = len(ret)
+            diffs = []
             for i in ret:
                 #print "            %.3f  %.3f    " % (i[2][0], i[2][1]),
                 stdDev = math.sqrt(func.variance(i[2]))
                 #print "%.5f" % stdDev
                 sumOfStdDevs += stdDev
+                diffs.append(math.fabs(i[2][0] - i[2][1]))
             quot = sumOfStdDevs/nSplits
             if verbose:
                 #print "  %f " % sumOfStdDevs,
                 print "     nSplits=%i, average of std devs of splits %.4f " % (nSplits, quot)
+                print "     max difference %f, mean difference %f" % (max(diffs), sum(diffs)/nSplits)
             return quot
         else:
             return None
