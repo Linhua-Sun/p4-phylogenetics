@@ -2670,6 +2670,7 @@ class STMcmcCheckPointReader(object):
         ret = tp1.compareSplits(tp2, minimumProportion=minimumProportion)
         if ret != []:
             sumOfStdDevs = 0.0
+            diffs = []
             if ret and len(ret):
                 nSplits = len(ret)
                 for i in ret:
@@ -2677,9 +2678,11 @@ class STMcmcCheckPointReader(object):
                     stdDev = math.sqrt(func.variance(i[2]))
                     #print "%.5f" % stdDev
                     sumOfStdDevs += stdDev
+                    diffs.append(math.fabs(i[2][0] - i[2][1]))
                 if verbose:
                     #print "  %f " % sumOfStdDevs,
                     print "     nSplits=%i, average of std devs of splits %.4f " % (nSplits, sumOfStdDevs/nSplits)
+                    print "     max difference %f, mean difference %f" % (max(diffs), sum(diffs)/nSplits)
             return sumOfStdDevs/nSplits
         else:
             return None
