@@ -40,30 +40,41 @@ def nSplits(n):
     return mySum
 
 def bForN(n):
-    prod = 1
+    # This is the log version of this function.  The max diff (in
+    # log(result)) between this and the non-log function seems to be
+    # about 2.5e-10 for n up to 10000.
+
+    prodLog = 0.0
     if n > 3:
         for k in range(4, n + 1):
-            prod *= ((2 * k) - 5)
-    return prod
-        
+            prodLog += math.log((2 * k) - 5)
+    return prodLog
+
+
+
 
 def BS2009_Eqn30_ZTApprox(n, beta, cT):
+    # This log version of this function differs from from the non-log
+    # version (in log(result)) by at most 6.82e-13 for n up to 150,
+    # over a wide range of beta (0.001 -- 1000) and cT (2 -- n/2)
+
     myLambda = cT/(2.0*n)
     tester = 0.5 * math.log((n - 3.)/myLambda)
 
     epsilon = math.exp(-2. * beta)
     bigANEpsilon = 1 + (((2. * n) - 3.) * epsilon) + (2. * ((n * n) - (4. * n) - 6.) * epsilon * epsilon)
-    termA = bigANEpsilon + 6 * cT * epsilon * epsilon
+    termA = math.log(bigANEpsilon + 6 * cT * epsilon * epsilon)
 
     if beta < tester:
-        termB = math.exp(-(2. * beta) * (n - 3.) + (myLambda * (math.exp(2. * beta) - 1.)))
-        termB *= bForN(n)
+        termB = -(2. * beta) * (n - 3.) + (myLambda * (math.exp(2. * beta) - 1.))
+        termB += bForN(n)
         if termA > termB:
             return termA
         else:
             return termB
     else:
         return termA
+
 
 def popcountA(k, nBits):
     count = 0
@@ -461,8 +472,8 @@ class STChain(object):
             if self.stMcmc.modelName == 'SR2008_rf_ia':
                 self.propTree.logLike -= beta_distance
             elif self.stMcmc.modelName.startswith('SR2008_rf_aZ'):
-                approxZT = BS2009_Eqn30_ZTApprox(t.nTax, self.propTree.beta, nCherries)
-                self.propTree.logLike -= math.log(approxZT)
+                log_approxZT = BS2009_Eqn30_ZTApprox(t.nTax, self.propTree.beta, nCherries)
+                self.propTree.logLike -= log_approxZT
                 self.propTree.logLike -= beta_distance
             else:
                 gm.append("Unknown modelName %s" % self.stMcmc.modelName)
@@ -472,7 +483,7 @@ class STChain(object):
     def getTreeLogLike_fastReducedRF(self):
         slowCheck = False
         if slowCheck:
-            self.getTreeLogLike_ppy1(self.propTree)
+            self.getTreeLogLike_ppy1()
             savedLogLike = self.propTree.logLike
 
         self.frrf.wipeBigTPointers()
@@ -564,8 +575,8 @@ class STChain(object):
                 if slowCheck:
                     if nCherries != thisPPyNCherries:
                         raise Glitch, "bitarray and purePython1 nCherries calcs differ."
-                approxZT = BS2009_Eqn30_ZTApprox(t.nTax, self.propTree.beta, nCherries)
-                self.propTree.logLike -= math.log(approxZT)
+                log_approxZT = BS2009_Eqn30_ZTApprox(t.nTax, self.propTree.beta, nCherries)
+                self.propTree.logLike -= log_approxZT
                 self.propTree.logLike -= beta_distance
             else:
                 gm.append("Unknown model %s" % self.stMcmc.modelName)

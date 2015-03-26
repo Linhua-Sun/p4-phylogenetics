@@ -32,12 +32,12 @@ def BS2009_Eqn30_ZTApprox(n, beta, cT):
         return termA
 */
 
-double bForN(int n)             // only good for n up to 152
+double bForN(int n) 
 {
-  double prod = 1.;
+  double prod = 0.0;
   if (n > 3) {
     for (int k=4; k<=n; k++) {
-      prod *= (double)((2 * k) - 5);
+      prod += std::log((double)((2 * k) - 5));
     }
   }
   return prod;
@@ -61,11 +61,11 @@ double BS2009_Eqn30_ZTApprox(int n, double beta, int cT)
 
   epsilon = std::exp(-2.0 * beta);
   bigANEpsilon = 1. + (((2. * dn) - 3.) * epsilon) + (2. * ((dn * dn) - (4. * dn) - 6.) * epsilon * epsilon);
-  termA = bigANEpsilon + 6. * dcT * epsilon * epsilon;
+  termA = std::log(bigANEpsilon + 6. * dcT * epsilon * epsilon);
 
   if (beta < tester) {
-    termB = std::exp(-(2. * beta) * (dn - 3.) + (myLambda * (std::exp(2. * beta) - 1.)));
-    termB *= bForN(n);
+    termB = -(2. * beta) * (dn - 3.) + (myLambda * (std::exp(2. * beta) - 1.));
+    termB += bForN(n);
     if (termA > termB) {
       return termA;
     } else {
@@ -525,7 +525,7 @@ public:
     double retd;
     No* n;
     int nNum;
-    double approxZT;
+    double log_approxZT;
     double logLike;
     logLike = 0.0;
     int nCherries;
@@ -551,8 +551,8 @@ public:
       nCherries = this->bigT->countNCherries(iT);
       //std::cout << "got this nCherries=" << nCherries << std::endl;
 
-      approxZT = BS2009_Eqn30_ZTApprox(iT->nTax, beta, nCherries);
-      logLike -= std::log(approxZT);
+      log_approxZT = BS2009_Eqn30_ZTApprox(iT->nTax, beta, nCherries);
+      logLike -= log_approxZT;
       logLike -= (beta * retd);
     }
     return logLike;
