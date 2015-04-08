@@ -370,65 +370,40 @@ class Nexus:
                 gm.append("Expecting a trees block command (eg 'tree'), or 'end'")
                 raise Glitch, gm
 
+
     def readTranslateCommand(self, flob):
 
         if hasattr(flob, 'name'):
             gm = ['Nexus.readTranslateCommand() (in a trees block) from file %s' % flob.name]
         else:
             gm = ['Nexus.readTranslateCommand() (in a trees block)']
-##        orderComplaint = """
-##        ============================================================
-##        The item pair in the translate command is backwards.
 
-##        We have two references: Maddison et al, Syst Biol. 46:590-621,
-##        1997., and the PAUP 4.0b8 manual, in pdf.
+        ##        We have two references: Maddison et al, Syst Biol. 46:590-621,
+        ##        1997., and the PAUP 4.0b8 manual, in pdf.
 
-##        Maddison et al says, on page 613:
+        ##        Maddison et al says, on page 613:
 
-##        The syntax for the TREEES block is
-##        BEGIN TREES;
-##            [TRANSLATE arbitrary-token-used-in-tree-description
-##             valid-taxon-name
-##             [, arbitrary-token-used-in-tree-description
-##             valid-taxon-name...];]
-##            [TREE [*] tree-name=tree-specification;]
-##        END;
+        ##        The syntax for the TREEES block is
+        ##        BEGIN TREES;
+        ##            [TRANSLATE arbitrary-token-used-in-tree-description
+        ##             valid-taxon-name
+        ##             [, arbitrary-token-used-in-tree-description
+        ##             valid-taxon-name...];]
+        ##            [TREE [*] tree-name=tree-specification;]
+        ##        END;
 
-##        The PAUP manual says this:
+        ##        The PAUP manual says this:
 
-##        The syntax for the TREES block follows:
-##        BEGIN TREES [ block-name ] ;
-##            [ TRANSLATE token taxon-name [ , token taxon-name  ]
-##               ... ; ]
-##            [ TREE [*] name = tree-specification; ]
-##        END;
+        ##        The syntax for the TREES block follows:
+        ##        BEGIN TREES [ block-name ] ;
+        ##            [ TRANSLATE token taxon-name [ , token taxon-name  ]
+        ##               ... ; ]
+        ##            [ TREE [*] name = tree-specification; ]
+        ##        END;
 
-##        MrBayes (v 1.11 and 2.01) writes the translate items
-##        backwards.  It puts the (lowercased) taxon name first,
-##        followed by the integer token used in the tree description.
-##        MrBayes (v 1.11 and 2.01) will not read its own incorrectly
-##        formatted translate command, but it will read it if the
-##        translate command is repaired so that
-##        arbitrary-token-used-in-tree-description comes first, followed
-##        by the valid-taxon-name.
-
-##        Paup 4b8 will read translate commands, either backwards or
-##        correctly formatted (or even a mixture of the two!), with
-##        valid-taxon-names either lowercased or not.
-
-##        Reluctantly, p4 follows the paup example, and reads translate
-##        command items either correctly or backwards.  Since p4 does
-##        not refer to taxnames in a previously read Data or Taxa block,
-##        the valid-taxon-name is simply taken at face value by p4.
-
-##        =============================================================
-##        """
-
-        orderComplaint = '    Warning: The item pair in the translate command is backwards.'
-        alreadyGivenBackwardsWarning = 0
         translationHash = {}
 
-        # We need to import nextTok.
+        # We need to import safeNextTok.
         if var.nexus_doFastNextTok:
             from NexusToken2 import safeNextTok
         else:
@@ -440,19 +415,10 @@ class Nexus:
             #print "x got keyTok '%s'" % keyTok
             if keyTok == None or keyTok == ';':
                 break
-            elif keyTok == ',':
-                keyTok = func.nexusUnquoteName(safeNextTok(flob, 'Nexus: readTranslateCommand'))
-                if keyTok == None or keyTok == ';':
-                    #gm.append("The last token - taxon name pair in the translate command")
-                    #gm.append("should not be followed by a comma.")
-                    #raise Glitch, gm
-                    break
-            #print "y got keyTok '%s' " % keyTok
-
-            #valueTok = func.nexusUnquoteName(safeNextTok(flob, 'Nexus: readTranslateCommand'))
             valueTok = safeNextTok(flob, 'Nexus: readTranslateCommand')
             valueTok = func.nexusUnquoteName(valueTok)
             #print "  got valueTok '%s'" % valueTok
+
             if valueTok == None or valueTok == ';':
                 gm.append("Translate items should be pairs.")
                 gm.append("Got nothing to pair with '%s'" % keyTok)
@@ -460,55 +426,32 @@ class Nexus:
 
             # It should be that the keyTok is the integer (usually,
             # but not necessarily) and the valueTok is the
-            # valid-taxon-name.  But it might be backwards.  In any
-            # event, they should not both be integers, unless
+            # valid-taxon-name.  For older MrBayes (before v3) it was
+            # backwards, and PAUP could handle it.  But here I will
+            # assume that it is not backwards.
+
+            # The valueTok should not be all digits, unless
             # var.nexus_allowAllDigitNames is turned on.
-
-            # If var.nexus_allowAllDigitNames then we cannot use
-            # whether the keyTok or valTok is an int to diagnose
-            # whether it is backwards -- we have to assume that it is
-            # not backwards.
-            if var.nexus_allowAllDigitNames:
-                translationHash[keyTok] = valueTok
-            else:
-                keyTokIsAnInt = False
-                valueTokIsAnInt = False
-                try:
-                    int(keyTok)
-                    keyTokIsAnInt = True
-                except ValueError:
-                    pass
-                try:
-                    int(valueTok)
-                    valueTokIsAnInt = True
-                except ValueError:
-                    pass
-                if keyTokIsAnInt and valueTokIsAnInt:
-                    gm.append("Both tokens in the translate pair are integers.")
-                    gm.append("(%s, and %s)" % (keyTok, valueTok))
-                    gm.append("but var.nexus_allowAllDigitNames is not turned on.")
+            if not var.nexus_allowAllDigitNames:
+                ret = min([c in string.digits for c in valueTok])
+                if ret == True:  # meaning that valueTok is all digits
+                    gm.append("Got all-digit name '%s'" % valueTok)
+                    gm.append("But var.nexus_allowAllDigitNames is currently False.")
+                    gm.append("If you want to allow this, set it to True")
                     raise Glitch, gm
+                
+            translationHash[keyTok] = valueTok
+            commaTok = safeNextTok(flob, 'Nexus: readTranslateCommand')
+            #print "  got commaTok '%s'" % commaTok
+            if commaTok == ',':
+                pass
+            elif commaTok == ';':
+                break
+            else:
+                gm.append("Expecting a comma or semi-colon, but got '%s'" % commaTok)
+                gm.append("Just after '%s'" % valueTok)
+                raise Glitch, gm
 
-
-                if valueTokIsAnInt:
-                    # Now it is assumed to be backwards.
-                    if not alreadyGivenBackwardsWarning:
-                        print gm[0]
-                        print orderComplaint
-                        alreadyGivenBackwardsWarning = 1
-                    translationHash[valueTok] = keyTok
-                else:
-                    # The valueTok was not an int.  So now we assume that
-                    # it is correct.  We might be wrong, if neither is an
-                    # int.  But that would be a pathological case, almost.
-                    # Does anyone use non-integer translations?
-                    if not keyTokIsAnInt:
-                        print gm[0]
-                        print "Odd: neither members of the translate pair (%s %s) are integers.  Is that wanted?" % (
-                            keyTok, valueTok)
-                    translationHash[keyTok] = valueTok
-
-        #print "returning translationHash", translationHash
         return translationHash
 
 
