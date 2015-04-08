@@ -118,7 +118,7 @@ class Sequence(object):
             
         self.sequence = ''.join(self.sequence)
                 
-    def writeFastaToOpenFile(self, flob, width=60, doComment=True):
+    def writeFastaToOpenFile(self, flob, width=60, doComment=True, writeExtraNewline=True):
         flob.write('>%s' % self.name)
         if doComment and self.comment:
             flob.write(' %s' % self.comment)
@@ -137,7 +137,8 @@ class Sequence(object):
                 flob.write('%s\n' % self.sequence[pos:].upper())
             else:
                 flob.write('%s\n' % self.sequence[pos:])
-        flob.write('\n')
+        if writeExtraNewline:
+            flob.write('\n')
 
     def write(self):
         self.writeFastaToOpenFile(sys.stdout)
