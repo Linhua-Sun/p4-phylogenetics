@@ -66,7 +66,9 @@ class TreePicture(object):
                 #print "n=%s, n.parent=%s" % (n.nodeNum, n.parent)
                 #print "n.parent.xPos=%s, n.br.len=%s, self.addToBrLen=%s" % (n.parent.xPos, n.br.len, self.addToBrLen)
                 if n.parent.xPos == None:
-                    raise Glitch, "Programming error. n.parent.xPos is None"
+                    raise Glitch, "Programming error. node %i n.parent.xPos is None" % n.nodeNum
+                if n.br == None:
+                    raise Glitch, "Programming error. node %i n.br is None" % n.nodeNum
                 n.xPos = n.parent.xPos + n.br.len + self.addToBrLen
                     
 
