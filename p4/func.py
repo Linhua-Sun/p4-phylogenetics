@@ -9,6 +9,7 @@ import cStringIO
 import random
 import glob
 import time
+import types
 from Var import var
 from SequenceList import Sequence,SequenceList
 from Alignment import Alignment
@@ -2699,9 +2700,9 @@ if var.usePfAndNumpy:
         else:
             mySeq = numpy.array(seq, numpy.float)
 
-        if mean == None:
+        if type(mean) == types.NoneType:
             mean = numpy.array([0.0])
-        if variance == None:
+        if type(variance) == types.NoneType:
             variance = numpy.array([0.0])
         pf.gsl_meanVariance(mySeq, len(seq), mean, variance)
         if 0:
