@@ -33,11 +33,11 @@ def choose(n, k):
     else:
         return 0
 
-def nSplits(n):
-    mySum = 0
-    for k in range(2, n-1):
-        mySum += choose(n-1, k)
-    return mySum
+# def nSplits(n):
+#     mySum = 0
+#     for k in range(2, n-1):
+#         mySum += choose(n-1, k)
+#     return mySum
 
 def bForN(n):
     # This is the log version of this function.  The max diff (in
@@ -307,14 +307,14 @@ class STChain(object):
                 print "There are %i non-redundant splits in the st for this it." % len(nonRedundantStSplits)
 
 
-            S_st = len(nonRedundantStSplits)  # S_st is the number of splits in the supertree
+            S_st = len(nonRedundantStSplits)  # S_st is the number of splits in the reduced supertree
             if slowCheck:
                 #stDupe.draw()
                 #print "the drawing above is stDupe"
                 slowCheckS_st = len([n for n in stDupe.iterInternalsNoRoot()])
                 assert S_st == slowCheckS_st
                 
-            S = nSplits(it.nTax)              # S is the number of possible splits in an it-sized tree
+            S = 2**(it.nTax - 1) - (it.nTax + 1)     # S is the number of possible splits in an it-sized tree
             #print "S=%i, S_st=%i" % (S, S_st)
             if S_st:
                 q = self.propTree.spaQ / S_st
@@ -473,6 +473,14 @@ class STChain(object):
                 self.propTree.logLike -= beta_distance
             elif self.stMcmc.modelName.startswith('SR2008_rf_aZ'):
                 log_approxZT = BS2009_Eqn30_ZTApprox(t.nTax, self.propTree.beta, nCherries)
+                if 0:
+                    # Testing, testing ...
+                    assert self.propTree.beta == 0.1
+                    assert t.nTax == 6
+                    if nCherries == 2:
+                        log_approxZT = 4.13695897651  # exact
+                    elif nCherries == 3:
+                        log_approxZT = 4.14853562562
                 self.propTree.logLike -= log_approxZT
                 self.propTree.logLike -= beta_distance
             else:
@@ -990,12 +998,12 @@ class STChain(object):
 
         if theProposal.name == 'nni':
             #self.proposeNni(theProposal)
-            self.propTree.nni()
+            self.propTree.nni()             # this does setPreAndPostOrder()
             if theProposal.doAbort:
                 pass
-            else:
-                if not self.propTree.preAndPostOrderAreValid:
-                    self.propTree.setPreAndPostOrder()
+            #else:
+            #    if not self.propTree.preAndPostOrderAreValid:    # not needed
+            #        self.propTree.setPreAndPostOrder()
         elif theProposal.name == 'spr':
             self.propTree.randomSpr()
             if theProposal.doAbort:
@@ -1055,10 +1063,11 @@ class STChain(object):
             gm.append('Unlisted proposal.name=%s  Fix me.' % theProposal.name)
             raise Glitch, gm
 
+        #return 0.0
         if theProposal.doAbort:
             return 0.0
         else:
-            #print "...about to calculate the likelihood of the propTree."
+            #print "...about to calculate the likelihood of the propTree.  Model %s" % self.stMcmc.modelName
             if self.stMcmc.modelName.startswith('SR2008_rf'):
                 if self.stMcmc.stRFCalc == 'fastReducedRF':
                     self.getTreeLogLike_fastReducedRF()
@@ -1117,6 +1126,11 @@ class STChain(object):
         #if aProposal.name == 'polytomy':
         #print "acceptMove = %s" % acceptMove
         #print "------------"
+        #print " %6.0f" % pRet
+        if 0 and acceptMove:
+            d1 = self.propTree.topologyDistance(self.curTree, metric='scqdist')
+            d2 = self.stMcmc.tree.topologyDistance(self.propTree, metric='scqdist')
+            print " %6.0f    %5i   %5i  %5s" % (pRet, d1, d2, acceptMove)
 
         aProposal.nProposals[self.tempNum] += 1
         if acceptMove:
@@ -1459,7 +1473,8 @@ See :class:`TreePartitions`.
             assert isinstance(bigT, Tree)
             assert bigT.taxNames
             bigT.stripBrLens()
-
+            for n in bigT.iterInternalsNoRoot():
+                n.name = None
 
         goodModelNames = ['SR2008_rf_ia', 'SR2008_rf_aZ', 'SR2008_rf_aZ_fb', 'SPA']
         if modelName not in goodModelNames:
