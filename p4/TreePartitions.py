@@ -2009,3 +2009,6 @@ something like this::
         self._finishSplits()
 
         
+    def getSplitForTaxNames(self, txNames):
+        k = func.getSplitKeyFromTaxNames(self.taxNames, txNames)
+        return self.splitsHash.get(k)
