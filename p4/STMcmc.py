@@ -10,6 +10,7 @@ from TreePartitions import TreePartitions
 from Constraints import Constraints
 from Tree import Tree
 import datetime
+import itertools
 
 try:
     import bitarray
@@ -225,6 +226,13 @@ class STChain(object):
             self.setupBitarrayCalcs()
             self.getTreeLogLike_spa_bitarray()
             self.curTree.logLike = self.propTree.logLike
+        elif self.stMcmc.modelName.startswith('QPA'):
+            self.curTree.spaQ= self.stMcmc.spaQ
+            self.propTree.spaQ = self.stMcmc.spaQ
+            self.nPossibleQuartets = choose(self.stMcmc.tree.nTax, 4) * 3
+            self.getTreeLogLike_qpa_slow()
+            self.curTree.logLike = self.propTree.logLike
+
         else:
             gm.append('Unknown modelName %s' % self.stMcmc.modelName)
             raise Glitch, gm
@@ -233,6 +241,55 @@ class STChain(object):
             print "STChain init()"
             self.curTree.draw()
             print "logLike is %f" % self.curTree.logLike
+
+
+    def getTreeLogLike_qpa_slow(self):
+        gm = ["STChain.getTreeLogLike_qpa_slow()"]
+        if self.propTree.spaQ > 1. or self.propTree.spaQ <= 0.0:
+            gm.append("bad propTree.spaQ value %f" % self.propTree.spaQ)
+            raise Glitch, gm
+        
+        for n in self.propTree.iterInternalsPostOrder():
+            if n == self.propTree.root:
+                break
+            n.stSplitKey = n.leftChild.stSplitKey
+            p = n.leftChild.sibling
+            while p:
+                n.stSplitKey |= p.stSplitKey    # "or", in-place
+                p = p.sibling
+        self.propTree.skk = [n.stSplitKey for n in self.propTree.iterInternalsNoRoot()]
+        self.propTree.qSet = set()
+        for sk in self.propTree.skk:
+            ups = [txBit for txBit in self.propTree.taxBits if (sk & txBit)]
+            downs = [txBit for txBit in self.propTree.taxBits if not (sk & txBit)]
+            for down in itertools.combinations(downs, 2):
+                assert down[0] < down[1]   # probably not needed
+                for up in itertools.combinations(ups, 2):
+                    assert up[0] < up[1]  # probably not needed
+                    if down[0] < up[0]:
+                        self.propTree.qSet.add(down+up)
+                    else:
+                        self.propTree.qSet.add(up+down)
+        #print self.propTree.qSet
+        self.propTree.nQuartets = len(self.propTree.qSet) 
+        
+        if self.propTree.nQuartets:
+            q = self.propTree.spaQ / self.propTree.nQuartets
+            R = 1. - self.propTree.spaQ
+            r = R / (self.nPossibleQuartets - self.propTree.nQuartets)
+            logq = math.log(q)
+        else:
+            R = 1.
+            r = R / self.nPossibleQuartets
+        logr = math.log(r)
+        self.propTree.logLike = 0.0
+        for it in self.stMcmc.trees:
+            for qu in it.qSet:
+                if qu in self.propTree.qSet:
+                    self.propTree.logLike += logq
+                else:
+                    self.propTree.logLike += logr
+        
 
     def getTreeLogLike_spa_bitarray(self):
         gm = ["STChain.getTreeLogLike_spa_bitarray"]
@@ -1034,7 +1091,7 @@ class STChain(object):
             self.logPriorRatio = 0.0
         elif theProposal.name == 'spaQ_uniform':
             mt = self.propTree.spaQ
-
+            #originally = mt
             # Slider proposal
             mt += (random.random() - 0.5) * theProposal.tuning
 
@@ -1052,6 +1109,7 @@ class STChain(object):
             self.propTree.spaQ = mt
             self.logProposalRatio = 0.0
             self.logPriorRatio = 0.0
+            #print "proposing mt from %.3f to %.3f, diff=%g" % (originally, mt, mt-originally)
 
         elif theProposal.name == 'polytomy':
             self.proposePolytomy(theProposal)
@@ -1079,7 +1137,8 @@ class STChain(object):
             elif self.stMcmc.modelName == 'SPA':
                 self.refreshBitarrayPropTree()
                 self.getTreeLogLike_spa_bitarray()
-                #pass
+            elif self.stMcmc.modelName == 'QPA':
+                self.getTreeLogLike_qpa_slow()
             else:
                 gm.append('Unknown model %s' % self.stMcmc.modelName)
                 raise Glitch, gm
@@ -1087,8 +1146,11 @@ class STChain(object):
             #if theProposal.name == 'polytomy':
             #print "propTree logLike is %f, curTree logLike is %f" % (
             #    self.propTree.logLike, self.curTree.logLike)
+            #myDist = self.propTree.topologyDistance(self.curTree)
+            #print "myDist %2i, propTree.logLike %.3f  curTree.logLike %.3f " % (myDist, self.propTree.logLike, self.curTree.logLike)
 
             logLikeRatio = self.propTree.logLike - self.curTree.logLike
+            #print logLikeRatio
             #logLikeRatio = 0.0
 
             theSum = logLikeRatio + self.logProposalRatio + self.logPriorRatio
@@ -1198,7 +1260,7 @@ class STMcmcTunings(object):
         lst.append("%s%20s: %s" % (spacer, 'nni', self.nni))
         lst.append("%s%20s: %s" % (spacer, 'spr', self.spr))
         lst.append("%s%20s: %s" % (spacer, 'SR2008beta_uniform', self.SR2008beta_uniform))
-        lst.append("%s%20s: %s" % (spacer, 'spaQ_uniform', self.SR2008beta_uniform))
+        lst.append("%s%20s: %s" % (spacer, 'spaQ_uniform', self.spaQ_uniform))
         return string.join(lst, '\n')
 
     def dump(self):
@@ -1476,7 +1538,7 @@ See :class:`TreePartitions`.
             for n in bigT.iterInternalsNoRoot():
                 n.name = None
 
-        goodModelNames = ['SR2008_rf_ia', 'SR2008_rf_aZ', 'SR2008_rf_aZ_fb', 'SPA']
+        goodModelNames = ['SR2008_rf_ia', 'SR2008_rf_aZ', 'SR2008_rf_aZ_fb', 'SPA', 'QPA']
         if modelName not in goodModelNames:
             gm.append("Arg modelName '%s' is not recognized. " % modelName)
             gm.append("Good modelNames are %s" % goodModelNames)
@@ -1506,7 +1568,7 @@ See :class:`TreePartitions`.
                 raise Glitch, gm
             self.stRFCalc = stRFCalc
 
-        if modelName.startswith("SPA"):
+        if modelName in ['SPA', 'QPA']:
             try:
                 fspaQ = float(spaQ)
             except ValueError:
@@ -1587,7 +1649,7 @@ See :class:`TreePartitions`.
         self.treeFileName = "mcmc_trees_%i.nex" % runNum
         self.pramsFileName = "mcmc_prams_%i" % runNum
         self.writePrams = False
-        if self.modelName in ['SR2008_rf_aZ_fb', "SPA"]:
+        if self.modelName in ['SR2008_rf_aZ_fb', "SPA", "QPA"]:
             self.writePrams = True
 
         self.lastTimeCheck = None
@@ -1601,7 +1663,7 @@ See :class:`TreePartitions`.
 
         self.tunings = STMcmcTunings() 
         self.prob = STMcmcProposalProbs()                
-        if self.modelName == 'SPA':
+        if self.modelName in ['SPA', 'QPA']:   
             self.prob.polytomy = 1.0
             self.prob.spr = 0.0
                 
@@ -1624,7 +1686,8 @@ See :class:`TreePartitions`.
         #print self.taxNames
         self.nTax = len(self.taxNames)
 
-        if self.modelName=='SPA' or self.stRFCalc == 'bitarray':
+
+        if self.modelName in ['SPA'] or self.stRFCalc == 'bitarray':
             #print "self.taxNames = ", self.taxNames
             for t in inTrees:
                 #print "-" * 50
@@ -1674,7 +1737,73 @@ See :class:`TreePartitions`.
                         #print "inverting and and-ing node %i stSplitKey to %s" % (n.nodeNum, n.stSplitKey)
                     t.splSet.add(n.stSplitKey.tobytes()) # bytes so that I can use it as a set element
 
-        elif self.stRFCalc in ['purePython1', 'fastReducedRF']:
+        if self.modelName in ['QPA']:
+            for t in inTrees:
+                sorted_taxNames = []
+                t.taxBits = []
+                for tNum in range(self.nTax):
+                    tN = self.taxNames[tNum]
+                    if tN in t.unsorted_taxNames:
+                        sorted_taxNames.append(tN)
+                        t.taxBits.append(1L << tNum)
+                    else:
+                        t.taxBits.append(0)
+                t.taxNames = sorted_taxNames
+                #print "intree taxBits is %s" % t.taxBits
+
+                # Can't use Tree.makeSplitKeys(), unfortunately.  So
+                # make split keys here.  STMcmc.tBits is only used for
+                # the leaves, here and in
+                # STChain.setupBitarrayCalcs(), and there only once,
+                # during STChain.__init__().  So probably does not
+                # need to be an instance attribute.  Maybe delete?
+                #self.tBits = [False] * self.nTax
+                for n in t.iterPostOrder():
+                    if n == t.root:
+                        break
+                    if n.isLeaf:
+                        spot = self.taxNames.index(n.name)
+                        #self.tBits[spot] = True
+                        n.stSplitKey = 1L << spot
+                        #self.tBits[spot] = False
+                    else:
+                        n.stSplitKey = n.leftChild.stSplitKey
+                        p = n.leftChild.sibling
+                        while p:
+                            n.stSplitKey |= p.stSplitKey    # "or", in-place
+                            p = p.sibling
+                        #print "setting node %i stSplitKey to %s" % (n.nodeNum, n.stSplitKey)
+                # t.splSet = set()
+                # for n in t.iterInternalsNoRoot():
+                #     if not n.stSplitKey[t.firstTax]:   # make sure splitKey[firstTax] is a '1'
+                #         n.stSplitKey.invert()
+                #         n.stSplitKey &= t.baTaxBits     # 'and', in-place
+                #         #print "inverting and and-ing node %i stSplitKey to %s" % (n.nodeNum, n.stSplitKey)
+                #     t.splSet.add(n.stSplitKey.tobytes()) # bytes so that I can use it as a set element
+                t.skk = [n.stSplitKey for n in t.iterInternalsNoRoot()]
+                t.qSet = set()
+                for sk in t.skk:
+                    ups = [txBit for txBit in t.taxBits if (sk & txBit)]
+                    downs = [txBit for txBit in t.taxBits if not (sk & txBit)]
+                    for down in itertools.combinations(downs, 2):
+                        assert down[0] < down[1]   # probably not needed
+                        for up in itertools.combinations(ups, 2):
+                            assert up[0] < up[1]  # probably not needed
+                            if down[0] < up[0]:
+                                t.qSet.add(down+up)
+                            else:
+                                t.qSet.add(up+down)
+                #print t.qSet
+                t.nQuartets = len(t.qSet)
+            
+        self.trees = inTrees
+        if bigT:
+            self.tree = bigT
+        else:
+            self.tree = func.randomTree(taxNames=self.taxNames, name='stTree', randomBrLens=False)
+                
+
+        if self.stRFCalc in ['purePython1', 'fastReducedRF']:
             for t in inTrees:
                 sorted_taxNames = []
                 t.taxBits = 0L
@@ -1689,11 +1818,6 @@ See :class:`TreePartitions`.
                 t.makeSplitKeys()
                 t.skSet = set([n.br.splitKey for n in t.iterInternalsNoRoot()])
 
-        self.trees = inTrees
-        if bigT:
-            self.tree = bigT
-        else:
-            self.tree = func.randomTree(taxNames=self.taxNames, name='stTree', randomBrLens=False)
         if self.stRFCalc in  ['purePython1', 'fastReducedRF']:
             self.tree.makeSplitKeys()
 
@@ -1708,6 +1832,37 @@ See :class:`TreePartitions`.
                     gm.append("at least one of fastReducedRF or pyublas.")
                     gm.append("Make sure they are installed.")
                     raise Glitch, gm
+
+        if self.modelName in ['QPA']:
+            self.tree.taxBits = [1L << i for i in range(self.tree.nTax)]
+            t = self.tree
+            for n in t.iterPostOrder():
+                if n == t.root:
+                    break
+                if n.isLeaf:
+                    spot = self.taxNames.index(n.name)
+                    n.stSplitKey = 1L << spot
+                else:
+                    n.stSplitKey = n.leftChild.stSplitKey
+                    p = n.leftChild.sibling
+                    while p:
+                        n.stSplitKey |= p.stSplitKey    # "or", in-place
+                        p = p.sibling
+            t.skk = [n.stSplitKey for n in t.iterInternalsNoRoot()]
+            t.qSet = set()
+            for sk in t.skk:
+                ups = [txBit for txBit in t.taxBits if (sk & txBit)]
+                downs = [txBit for txBit in t.taxBits if not (sk & txBit)]
+                for down in itertools.combinations(downs, 2):
+                    assert down[0] < down[1]   # probably not needed
+                    for up in itertools.combinations(ups, 2):
+                        assert up[0] < up[1]  # probably not needed
+                        if down[0] < up[0]:
+                            t.qSet.add(down+up)
+                        else:
+                            t.qSet.add(up+down)
+            #print t.qSet
+            t.nQuartets = len(t.qSet)            
 
         print "Initializing STMcmc"
         print "%-10s: %s" % ('modelName', modelName)
@@ -1745,7 +1900,7 @@ See :class:`TreePartitions`.
                 self.proposals.append(p)
                 #object.__setattr__(self.tuningsUsage, 'local', p)
 
-        if self.modelName in ['SPA']:
+        if self.modelName in ['SPA', 'QPA']:
             if self.prob.spaQ_uniform:
                 p = STProposal(self)
                 p.name = 'spaQ_uniform'
@@ -2118,6 +2273,8 @@ See :class:`TreePartitions`.
                         pramsFile.write("    genPlus1     beta\n")
                     elif self.modelName.startswith("SPA"):
                         pramsFile.write("    genPlus1     spaQ\n")
+                    elif self.modelName.startswith("QPA"):
+                        pramsFile.write("    genPlus1     spaQ\n")
                     pramsFile.close()
                 sys.stdout.flush()
             
@@ -2280,7 +2437,7 @@ See :class:`TreePartitions`.
                     pramsFile.write("%12i" % (self.gen + 1))
                     if self.modelName.startswith("SR2008"):
                         pramsFile.write("  %f\n" % self.chains[coldChainNum].curTree.beta)
-                    elif self.modelName.startswith("SPA"):
+                    elif self.modelName in ["SPA", "QPA"]:
                         pramsFile.write("  %f\n" % self.chains[coldChainNum].curTree.spaQ)
                     pramsFile.close()
 
