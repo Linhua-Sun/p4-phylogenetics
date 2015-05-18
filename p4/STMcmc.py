@@ -263,9 +263,11 @@ class STChain(object):
             ups = [txBit for txBit in self.propTree.taxBits if (sk & txBit)]
             downs = [txBit for txBit in self.propTree.taxBits if not (sk & txBit)]
             for down in itertools.combinations(downs, 2):
-                assert down[0] < down[1]   # probably not needed
+                if down[0] > down[1]:
+                    down = (down[1], down[0])
                 for up in itertools.combinations(ups, 2):
-                    assert up[0] < up[1]  # probably not needed
+                    if up[0] > up[1]:
+                        up = (up[1], up[0])
                     if down[0] < up[0]:
                         self.propTree.qSet.add(down+up)
                     else:
@@ -1786,9 +1788,11 @@ See :class:`TreePartitions`.
                     ups = [txBit for txBit in t.taxBits if (sk & txBit)]
                     downs = [txBit for txBit in t.taxBits if not (sk & txBit)]
                     for down in itertools.combinations(downs, 2):
-                        assert down[0] < down[1]   # probably not needed
+                        if down[0] > down[1]:
+                            down = (down[1], down[0])
                         for up in itertools.combinations(ups, 2):
-                            assert up[0] < up[1]  # probably not needed
+                            if up[0] > up[1]:
+                                up = (up[1], up[0])
                             if down[0] < up[0]:
                                 t.qSet.add(down+up)
                             else:
