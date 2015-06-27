@@ -1,0 +1,5 @@
+P4 is a Python package that does maximum likelihood and Bayesian phylogenetic analyses on molecular sequences. It's specialty is that you can use heterogeneous models, where the model parameters can differ in different parts of the tree, or over different parts of the data. P4 was written by Peter G. Foster, The Natural History Museum, London (p dot foster at nhm dot ac dot uk). It is distributed under the GPL.
+
+The user interface for p4 is the Python language. That means that p4 comes with all the abilities of a high-level object-oriented programing language. This is a Good Thing, but it means that to use p4 you should know Python first. (There are tutorials at [Python.org](http://www.python.org)). P4 does not have a graphic user interface; if you are looking for a program with buttons and menus, then p4 is not what you want.
+
+See http://p4.nhm.ac.uk
